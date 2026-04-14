@@ -1,0 +1,10 @@
+{
+  "name": "claude-builder-club",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "test": "node tests/prototype-hardening.test.mjs"
+  }
+}

@@ -1,0 +1,2399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Wage Worker Interaction Prototypes</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @keyframes shake {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-8px) rotate(-2deg); }
+    20%, 40%, 60%, 80% { transform: translateX(8px) rotate(2deg); }
+  }
+  @keyframes pulse-ring {
+    0% { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2.4); opacity: 0; }
+  }
+  @keyframes ring {
+    0%, 100% { transform: rotate(0); }
+    25% { transform: rotate(-8deg); }
+    75% { transform: rotate(8deg); }
+  }
+  @keyframes vibrate {
+    0%, 100% { transform: translate(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translate(-2px, 0); }
+    20%, 40%, 60%, 80% { transform: translate(2px, 0); }
+  }
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+    50% { box-shadow: 0 0 0 12px rgba(239,68,68,0); }
+  }
+  .shake-anim { animation: shake 0.4s ease-in-out; }
+  .ring-anim { animation: ring 0.6s ease-in-out infinite; }
+  .vibrate-anim { animation: vibrate 0.15s linear infinite; }
+  .mic-pulse { animation: mic-pulse 1.2s ease-in-out infinite; }
+  .pulse-ring::after {
+    content: ''; position: absolute; inset: 0;
+    border-radius: 50%; border: 3px solid #10b981;
+    animation: pulse-ring 1.4s cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+  }
+  .phone-screen {
+    background: linear-gradient(180deg, #0a0a0f 0%, #14141a 100%);
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.6);
+  }
+  .flow-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #d1d5db; transition: all 0.3s;
+  }
+  .flow-dot.active { background: #10b981; transform: scale(1.4); }
+  .flow-dot.done { background: #10b981; }
+  body { font-family: 'Inter', -apple-system, system-ui, sans-serif; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<div id="root"></div>
+
+<script type="text/babel" data-type="module">
+// @ts-nocheck
+const { useState, useEffect, useRef } = React;
+
+// ============================================================
+// LANGUAGE DATA
+// ============================================================
+const LANGS = {
+  en: { code: 'en', name: 'English', english: 'English', ttsCode: 'en-IN' },
+  hi: { code: 'hi', name: 'हिन्दी', english: 'Hindi', ttsCode: 'hi-IN' },
+  bn: { code: 'bn', name: 'বাংলা', english: 'Bengali', ttsCode: 'bn-IN' },
+  mr: { code: 'mr', name: 'मराठी', english: 'Marathi', ttsCode: 'mr-IN' }
+};
+
+// All spoken text per paradigm per language
+const COPY = {
+  A2: {
+    en: {
+      wage: "Today, April 14, your wage of eight hundred rupees is recorded. Contractor: Rajesh Kumar. Task: Tile fitting. Press 1 to repeat, 2 for weekly summary, 9 for grievance.",
+      weekly: "You worked 5 days this week. Total wage: four thousand four hundred rupees.",
+      end: "Call ending. Call back to listen again."
+    },
+    hi: {
+      wage: "आज, 14 अप्रैल, आपकी दिहाड़ी आठ सौ रुपये दर्ज है। ठेकेदार: राजेश कुमार। काम: टाइल फिटिंग। दोबारा सुनने के लिए एक दबाओ, हफ्ते का हिसाब सुनने के लिए दो, शिकायत के लिए नौ।",
+      weekly: "इस हफ्ते पाँच दिन काम किया। कुल दिहाड़ी: चार हज़ार चार सौ रुपये।",
+      end: "कॉल बंद हो रहा है। फिर सुनने के लिए दोबारा कॉल करो।"
+    },
+    bn: {
+      wage: "আজ, চোদ্দই এপ্রিল, আপনার মজুরি আটশো টাকা লেখা হয়েছে। ঠিকাদার: রাজেশ কুমার। কাজ: টাইল ফিটিং। আবার শুনতে এক টিপুন, সপ্তাহের হিসাবের জন্য দুই, অভিযোগের জন্য নয়।",
+      weekly: "এই সপ্তাহে পাঁচ দিন কাজ করেছেন। মোট মজুরি: চার হাজার চারশো টাকা।",
+      end: "কল শেষ হচ্ছে। আবার শুনতে ফোন করুন।"
+    },
+    mr: {
+      wage: "आज, चौदा एप्रिल, तुमची दिहाडी आठशे रुपये नोंदवली आहे. ठेकेदार: राजेश कुमार. काम: टाइल फिटिंग. परत ऐकायला एक दाबा, आठवड्याच्या हिशोबासाठी दोन, तक्रारीसाठी नऊ.",
+      weekly: "या आठवड्यात पाच दिवस काम केले. एकूण दिहाडी: चार हजार चारशे रुपये.",
+      end: "कॉल बंद होतोय. परत ऐकायला पुन्हा कॉल करा."
+    }
+  },
+  A3: {
+    en: { wage: "Today's wage: eight hundred rupees. This week: four thousand four hundred." },
+    hi: { wage: "आज की दिहाड़ी आठ सौ रुपये। इस हफ्ते चार हज़ार चार सौ।" },
+    bn: { wage: "আজকের মজুরি আটশো টাকা। এই সপ্তাহে চার হাজার চারশো।" },
+    mr: { wage: "आजची दिहाडी आठशे रुपये. या आठवड्यात चार हजार चारशे." }
+  },
+  B2: {
+    en: {
+      prompt: "What does your issue sound like? Press any key when you hear the matching sound.",
+      speak: "Now speak your issue. You have two minutes. Silence will auto-save.",
+      summary: "Wage complaint, today, forty-five seconds. Press 1 if correct, 2 if wrong. Doing nothing discard.",
+      confirm: "Complaint filed. ID: 4 7 2. Remember this. You will get a callback by tomorrow."
+    },
+    hi: {
+      prompt: "आपकी समस्या कौन सी आवाज़ जैसी है? वो आवाज़ सुनें तो कोई भी बटन दबाओ।",
+      speak: "अब अपनी बात बोलिए। दो मिनट तक बोल सकते हैं। चुप रहोगे तो बंद हो जाएगा।",
+      summary: "पैसे की शिकायत, आज की, पैंतालीस सेकंड। सही है तो एक दबाओ, ग़लत है तो दो। कुछ नहीं करोगे तो कुछ नहीं होगा।",
+      confirm: "शिकायत दर्ज हो गई। नंबर है: चार, सात, दो। ये नंबर याद रखो। कल तक कोई फ़ोन करेगा।"
+    },
+    bn: {
+      prompt: "আপনার সমস্যা কোন শব্দের মতো? সেই শব্দ শুনলে যেকোনো বোতাম টিপুন।",
+      speak: "এখন আপনার কথা বলুন। দুই মিনিট বলতে পারেন। চুপ থাকলে বন্ধ হবে।",
+      summary: "টাকার অভিযোগ, আজ, পঁয়তাল্লিশ সেকেন্ড। ঠিক হলে এক টিপুন, ভুল হলে দুই। কিছু না করলে কিছু হবে না।",
+      confirm: "অভিযোগ লেখা হয়েছে। নম্বর: চার, সাত, দুই। এই নম্বর মনে রাখুন। কালকে ফোন আসবে।"
+    },
+    mr: {
+      prompt: "तुमची समस्या कोणत्या आवाजासारखीীতি आहे? तो आवाज आल्यावर कोणतेही बटण दाबा.",
+      speak: "आता तुमची गोष्ट सांगा. दोन मिनिटं बोलू शकता. शांत राहाल तर बंद होईल.",
+      summary: "पैशाची तक्रार, आजची, पन्नास सेकंद. बरोबर तर एक दाबा, चूक तर दोन. काही नाही केलं तर काही होणार नाही.",
+      confirm: "तक्रार नोंदवली. क्रमांक: चार, सात, दोन. हा क्रमांक लक्षात ठेवा. उद्या फोन येईल."
+    }
+  },
+  B5: {
+    en: {
+      prompt: "How was work today? Any issues? Did you get paid correctly?",
+      saved: "Today's diary saved.",
+      pattern: "You mentioned wage issues 3 times. File a complaint? 1 tap for yes, 2 taps for not now."
+    },
+    hi: {
+      prompt: "आज काम कैसा रहा? कोई परेशानी? पैसा सही मिला?",
+      saved: "आज की डायरी सेव हो गई।",
+      pattern: "तीन बार पैसे की समस्या बोली। शिकायत दर्ज करें? एक थप हाँ, दो थप अभी नहीं।"
+    },
+    bn: {
+      prompt: "আজ কাজ কেমন গেলো? কোনো অসুবিধা? টাকা ঠিকমতো পেলেন?",
+      saved: "আজকের ডায়েরি সেভ হয়েছে।",
+      pattern: "তিন বার টাকার সমস্যা বলেছেন। অভিযোগ করবো? এক টিপুন হ্যাঁ, দুই টিপুন এখন না।"
+    },
+    mr: {
+      prompt: "आज काम कसं झालं? काही त्रास? पैसे बरोबर मिळाले?",
+      saved: "आजची डायरी सेव झाली.",
+      pattern: "तीन वेळा पैशाची समस्या सांगितली. तक्रार नोंदवायची? एक थप हो, दोन थप आता नाही."
+    }
+  },
+  C2: {
+    en: {
+      menu: "Wage helpline. Press 1 to send money. Press 2 to check balance.",
+      who: "Who to send money to? Press 1 for Home. Press 2 for other number.",
+      amount: "How much to send? Speak the amount or dial it.",
+      confirm: "Sending AMOUNT rupees home, to Sunita Devi. If correct, press 1 to enter PIN. If wrong, press star.",
+      pin: "Enter your four digit UPI PIN on the keypad.",
+      done: "Done. AMOUNT rupees sent. Receipt: 7 4 2 9. You can cancel within two minutes if wrong."
+    },
+    hi: {
+      menu: "दिहाड़ी हेल्पलाइन। पैसा भेजने के लिए एक दबाओ। बैलेंस देखने के लिए दो दबाओ।",
+      who: "किसको पैसा भेजना है? घर के लिए एक दबाओ। दूसरा नंबर के लिए दो दबाओ।",
+      amount: "कितने रुपये भेजने हैं? गिनती बोलो या नंबर दबाओ।",
+      confirm: "AMOUNT रुपये घर भेज रहे हैं — सुनीता देवी को। सही है तो एक दबाकर यूपीआई पिन डालो। ग़लत है तो स्टार दबाओ।",
+      pin: "अपना चार अंक का यूपीआई पिन दबाओ।",
+      done: "हो गया। AMOUNT रुपये भेज दिए। रसीद नंबर: सात, चार, दो, नौ। अगर ग़लती है तो दो मिनट में कैंसिल कर सकते हो।"
+    },
+    bn: {
+      menu: "মজুরি হেল্পলাইন। টাকা পাঠাতে এক টিপুন। ব্যালেন্স দেখতে দুই টিপুন।",
+      who: "কাকে টাকা পাঠাবেন? ঘরে পাঠাতে এক টিপুন। অন্য নম্বরে দুই টিপুন।",
+      amount: "কত টাকা পাঠাবেন? বলুন বা নম্বর টিপুন।",
+      confirm: "AMOUNT টাকা ঘরে পাঠাচ্ছি — সুনিতা দেবীকে। ঠিক হলে এক টিপে ইউপিআই পিন দিন। ভুল হলে তারা টিপুন।",
+      pin: "চার সংখ্যার ইউপিআই পিন টিপুন।",
+      done: "হয়ে গেছে। AMOUNT টাকা পাঠানো হয়েছে। রসিদ: সাত, চার, দুই, নয়। ভুল হলে দুই মিনিটের মধ্যে বাতিল করতে পারেন।"
+    },
+    mr: {
+      menu: "दिहाडी हेल्पलाइन. पैसे पाठवायला एक दाबा. बॅलन्स पहायला दोन दाबा.",
+      who: "कोणाला पैसे पाठवायचे? घरासाठी एक दाबा. दुसरा नंबर दोन दाबा.",
+      amount: "किती रुपये पाठवायचे? सांगा किंवा नंबर दाबा.",
+      confirm: "AMOUNT रुपये घरी पाठवतोय — सुनीता देवीला. बरोबर तर एक दाबून यूपीआय पिन टाका. चूक तर स्टार दाबा.",
+      pin: "चार अंकी यूपीआय पिन दाबा.",
+      done: "झालं. AMOUNT रुपये पाठवले. पावती: सात, चार, दोन, नऊ. चूक असेल तर दोन मिनिटांत रद्द करू शकता."
+    }
+  },
+  C3r: {
+    en: {
+      offer: "You sent eight hundred home the last 3 Fridays. Auto-send every Friday? 1 tap yes, 2 taps no.",
+      accepted: "Will remind you every Friday at 7 PM. 1 tap to approve. Won't send without approval.",
+      weekly: "It's Friday. Send eight hundred home to Sunita Devi? 1 tap yes, do nothing for no.",
+      sent: "Eight hundred sent. Receipt: 7 4 2 9.",
+      skipped: "Not approved. Money not sent this week."
+    },
+    hi: {
+      offer: "तीन शुक्रवार आठ सौ रुपये घर भेजे हैं। हर शुक्रवार अपने आप भेजूँ? एक थप हाँ, दो थप नहीं।",
+      accepted: "हर शुक्रवार शाम सात बजे याद दिलाऊँगा। अप्रूव करने के लिए एक थप देना होगा। अप्रूव नहीं करोगे तो पैसा नहीं जाएगा।",
+      weekly: "शुक्रवार है। आठ सौ घर भेजूँ सुनीता देवी को? हाँ के लिए एक थप, नहीं के लिए कुछ मत करो।",
+      sent: "आठ सौ भेज दिए। रसीद: सात, चार, दो, नौ।",
+      skipped: "आपने अप्रूव नहीं किया। इस हफ्ते पैसा नहीं गया।"
+    },
+    bn: {
+      offer: "তিন শুক্রবার আটশো টাকা ঘরে পাঠিয়েছেন। প্রতি শুক্রবার নিজে নিজে পাঠাবো? এক টিপুন হ্যাঁ, দুই টিপুন না।",
+      accepted: "প্রতি শুক্রবার সন্ধ্যা সাতটায় মনে করাবো। অনুমোদন করতে এক টিপুন লাগবে। না করলে টাকা যাবে না।",
+      weekly: "শুক্রবার। আটশো ঘরে পাঠাবো, সুনিতা দেবীকে? হ্যাঁ এক টিপুন, না হলে কিছু করবেন না।",
+      sent: "আটশো পাঠানো হয়েছে। রসিদ: সাত, চার, দুই, নয়।",
+      skipped: "অনুমোদন করেন নি। এই সপ্তাহে টাকা যায়নি।"
+    },
+    mr: {
+      offer: "तीन शुक्रवार आठशे रुपये घरी पाठवले. दर शुक्रवारी आपोआप पाठवू? एक थप हो, दोन थप नाही.",
+      accepted: "दर शुक्रवारी संध्याकाळी सात वाजता आठवण देतो. मंजुरीसाठी एक थप द्यावा. मंजूर नाही केलं तर पैसे जाणार नाहीत.",
+      weekly: "शुक्रवार आहे. आठशे घरी पाठवू, सुनीता देवीला? हो एक थप, नाही तर काही करू नका.",
+      sent: "आठशे पाठवले. पावती: सात, चार, दोन, नऊ.",
+      skipped: "तुम्ही मंजूर केलं नाही. या आठवड्यात पैसे गेले नाहीत."
+    }
+  }
+};
+
+// ============================================================
+// RUNTIME STATE
+// ============================================================
+const DIAGNOSTIC_EVENT = "cbc-runtime-diagnostics";
+const ROOT_HOSTS = new Set(["localhost", "127.0.0.1"]);
+const INITIAL_DIAGNOSTICS = {
+  secureContext: window.isSecureContext || ROOT_HOSTS.has(window.location.hostname),
+  sttSupported: Boolean(window.SpeechRecognition || window.webkitSpeechRecognition),
+  micPermission: "unknown",
+  currentLanguage: "hi",
+  ttsStatus: "idle",
+  lastTtsError: "none",
+  lastSttError: "none",
+  aiVoiceDisclosure: "OpenAI cloud TTS powers spoken prompts.",
+};
+
+window.__CBC_RUNTIME_DIAGNOSTICS = window.__CBC_RUNTIME_DIAGNOSTICS || { ...INITIAL_DIAGNOSTICS };
+
+function updateDiagnostics(patch) {
+  window.__CBC_RUNTIME_DIAGNOSTICS = {
+    ...window.__CBC_RUNTIME_DIAGNOSTICS,
+    ...patch,
+  };
+  window.dispatchEvent(new CustomEvent(DIAGNOSTIC_EVENT, { detail: window.__CBC_RUNTIME_DIAGNOSTICS }));
+}
+
+function RuntimeDiagnosticsPanel({ lang }) {
+  const d = useRuntimeDiagnostics(lang);
+  return (
+    <div className="bg-gray-900 text-gray-100 text-xs rounded-xl border border-gray-700 p-3 space-y-1 shadow-sm max-w-md">
+      <div className="font-bold text-cyan-300 mb-1">Runtime diagnostics</div>
+      <div>Secure context: <span className={d.secureContext ? 'text-green-400' : 'text-red-400'}>{String(d.secureContext)}</span></div>
+      <div>STT supported: <span className={d.sttSupported ? 'text-green-400' : 'text-red-400'}>{String(d.sttSupported)}</span></div>
+      <div>Mic permission: <span className="text-amber-300">{d.micPermission}</span></div>
+      <div>Language: <span className="text-amber-300">{d.currentLanguage}</span></div>
+      <div>TTS status: <span className="text-amber-300">{d.ttsStatus}</span></div>
+      <div>Last TTS error: <span className="text-gray-400">{d.lastTtsError}</span></div>
+      <div>Last STT error: <span className="text-gray-400">{d.lastSttError}</span></div>
+      <div className="text-[10px] text-gray-400 pt-1 border-t border-gray-700 mt-1">{d.aiVoiceDisclosure}</div>
+    </div>
+  );
+}
+
+function useRuntimeDiagnostics(currentLanguage) {
+  const [diagnostics, setDiagnostics] = useState({
+    ...window.__CBC_RUNTIME_DIAGNOSTICS,
+    currentLanguage,
+  });
+
+  useEffect(() => {
+    const handler = event => setDiagnostics(event.detail);
+    window.addEventListener(DIAGNOSTIC_EVENT, handler);
+    updateDiagnostics({ currentLanguage });
+
+    if (navigator.permissions?.query) {
+      navigator.permissions.query({ name: "microphone" }).then(status => {
+        updateDiagnostics({ micPermission: status.state });
+        status.onchange = () => updateDiagnostics({ micPermission: status.state });
+      }).catch(() => {
+        updateDiagnostics({ micPermission: "prompt" });
+      });
+    }
+
+    return () => window.removeEventListener(DIAGNOSTIC_EVENT, handler);
+  }, [currentLanguage]);
+
+  return diagnostics;
+}
+
+async function ensureMicrophoneAccess() {
+  const secureContext = window.isSecureContext || ROOT_HOSTS.has(window.location.hostname);
+  if (!secureContext) {
+    const message = "Microphone capture needs Chrome or Edge on localhost/HTTPS.";
+    updateDiagnostics({ secureContext: false, lastSttError: message });
+    return { ok: false, status: "error", message };
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    const message = "Microphone capture is not available in this browser.";
+    updateDiagnostics({ lastSttError: message });
+    return { ok: false, status: "unsupported", message };
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(track => track.stop());
+    updateDiagnostics({ micPermission: "granted", lastSttError: "none" });
+    return { ok: true, status: "granted", message: "" };
+  } catch (error) {
+    const denied = error && (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
+    const message = denied ? "Microphone permission was denied." : "Unable to start microphone capture.";
+    updateDiagnostics({
+      micPermission: denied ? "denied" : window.__CBC_RUNTIME_DIAGNOSTICS.micPermission,
+      lastSttError: message,
+    });
+    return { ok: false, status: denied ? "error" : "error", message };
+  }
+}
+
+const speechState = {
+  token: 0,
+  activeAudio: null,
+};
+
+function normalizeLangCode(langCode) {
+  return (langCode || "en-IN").split("-")[0].toLowerCase();
+}
+
+async function requestTtsBlob(text, langCode, purpose = "prompt") {
+  updateDiagnostics({ ttsStatus: "loading", lastTtsError: "none" });
+  const response = await fetch("/api/tts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text,
+      lang: normalizeLangCode(langCode),
+      purpose,
+    }),
+  });
+
+  if (!response.ok) {
+    let message = "TTS request failed.";
+    try {
+      const data = await response.json();
+      message = data.message || message;
+    } catch (error) {
+      message = await response.text();
+    }
+    updateDiagnostics({ ttsStatus: "error", lastTtsError: message || "TTS request failed." });
+    throw new Error(message || "TTS request failed.");
+  }
+
+  return response.blob();
+}
+
+// Google Translate TTS endpoint — plays real Hindi/Bengali/Marathi/English voices
+// via <audio> tag (no CORS issue for media elements). Chunked at 200 chars.
+function googleTtsUrls(text, lang) {
+  const code = (lang || 'en').split('-')[0].toLowerCase();
+  const chunks = [];
+  const clean = String(text).replace(/\s+/g, ' ').trim();
+  for (let i = 0; i < clean.length; i += 190) chunks.push(clean.slice(i, i + 190));
+  return chunks.map(q =>
+    `https://translate.google.com/translate_tts?ie=UTF-8&tl=${encodeURIComponent(code)}&client=tw-ob&q=${encodeURIComponent(q)}`
+  );
+}
+
+function playAudioUrl(url) {
+  return new Promise((resolve, reject) => {
+    const audio = new Audio(url);
+    speechState.activeAudio = audio;
+    audio.onended = () => resolve();
+    audio.onerror = () => reject(new Error('audio error'));
+    audio.play().catch(reject);
+  });
+}
+
+async function googleTranslateSpeak(text, langCode) {
+  const urls = googleTtsUrls(text, langCode);
+  updateDiagnostics({ ttsStatus: "playing", lastTtsError: "using Google Translate TTS fallback" });
+  for (const url of urls) {
+    await playAudioUrl(url);
+  }
+  updateDiagnostics({ ttsStatus: "ready" });
+}
+
+function browserSynthesisSpeak(text, langCode) {
+  return new Promise(resolve => {
+    if (!window.speechSynthesis) { resolve(); return; }
+    try {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = langCode || 'en-IN';
+      const v = pickVoice(utter.lang);
+      if (v) { utter.voice = v; utter.lang = v.lang; }
+      utter.rate = 0.9;
+      utter.onend = () => { updateDiagnostics({ ttsStatus: "ready" }); resolve(); };
+      utter.onerror = () => { updateDiagnostics({ ttsStatus: "error", lastTtsError: "Native TTS error." }); resolve(); };
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    } catch (e) { resolve(); }
+  });
+}
+
+async function fallbackNativeSpeak(text, langCode) {
+  // Tier 1: Google Translate TTS — has real hi/bn/mr/en voices and works from file://
+  try {
+    await googleTranslateSpeak(text, langCode);
+    return;
+  } catch (err) {
+    updateDiagnostics({ lastTtsError: "Google TTS failed, trying browser synthesis." });
+  }
+  // Tier 2: browser speechSynthesis (may not support non-English on Windows)
+  await browserSynthesisSpeak(text, langCode);
+}
+
+async function playQueuedAudio(item, token) {
+  if (!item?.text || token !== speechState.token) return;
+  let blob;
+  try {
+    blob = await requestTtsBlob(item.text, item.lang, item.purpose);
+  } catch (err) {
+    // Cloud TTS unavailable (no server, no API key, offline) — fall back to browser speech.
+    if (token !== speechState.token) return;
+    return fallbackNativeSpeak(item.text, item.lang);
+  }
+  if (token !== speechState.token) return;
+
+  const audioUrl = URL.createObjectURL(blob);
+  await new Promise((resolve, reject) => {
+    const audio = new Audio(audioUrl);
+    speechState.activeAudio = audio;
+    updateDiagnostics({ ttsStatus: "playing" });
+    audio.onended = () => {
+      URL.revokeObjectURL(audioUrl);
+      if (speechState.activeAudio === audio) speechState.activeAudio = null;
+      updateDiagnostics({ ttsStatus: "ready" });
+      resolve();
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(audioUrl);
+      if (speechState.activeAudio === audio) speechState.activeAudio = null;
+      updateDiagnostics({ ttsStatus: "error", lastTtsError: "Audio playback failed — falling back to browser TTS." });
+      fallbackNativeSpeak(item.text, item.lang).then(resolve);
+    };
+    audio.play().catch(error => {
+      URL.revokeObjectURL(audioUrl);
+      if (speechState.activeAudio === audio) speechState.activeAudio = null;
+      updateDiagnostics({ ttsStatus: "error", lastTtsError: (error.message || "Autoplay blocked") + " — falling back to browser TTS." });
+      fallbackNativeSpeak(item.text, item.lang).then(resolve);
+    });
+  });
+}
+
+function queueSpeechItems(items) {
+  const token = ++speechState.token;
+  const filtered = (items || []).filter(item => item && item.text);
+  return filtered.reduce(
+    (promise, item) => promise.then(() => playQueuedAudio(item, token)).catch(() => {}),
+    Promise.resolve(),
+  );
+}
+
+function buildC2SpeechCopy(amount) {
+  const safeAmount = String(amount || "800");
+  return {
+    confirm: {
+      en: `Sending ${safeAmount} rupees to Sunita Devi. If correct, enter your UPI PIN. If wrong, press star.`,
+      hi: `${safeAmount} रुपये सुनीता देवी को भेज रहे हैं। सही है तो UPI PIN डालें। गलत है तो स्टार दबाएँ।`,
+      bn: `${safeAmount} টাকা সুনিতা দেবীকে পাঠানো হবে। ঠিক হলে UPI PIN দিন। ভুল হলে তারা টিপুন।`,
+      mr: `${safeAmount} रुपये सुनीता देवींना पाठवत आहोत. बरोबर असल्यास UPI PIN दाबा. चूक असल्यास स्टार दाबा.`,
+    },
+    done: {
+      en: `${safeAmount} rupees sent. Receipt number is 7 4 2 9. You can reverse within two minutes if this is wrong.`,
+      hi: `${safeAmount} रुपये भेज दिए गए। रसीद नंबर 7 4 2 9 है। गलती हो तो दो मिनट में वापस कर सकते हैं।`,
+      bn: `${safeAmount} টাকা পাঠানো হয়েছে। রসিদ নম্বর 7 4 2 9। ভুল হলে দুই মিনিটের মধ্যে ফেরত নিতে পারেন।`,
+      mr: `${safeAmount} रुपये पाठवले गेले. पावती क्रमांक 7 4 2 9. चूक असल्यास दोन मिनिटांत उलटवू शकता.`,
+    },
+    cancelled: {
+      en: "Transfer cancelled. Start again when you are ready.",
+      hi: "ट्रान्सफर रद्द हो गया। तैयार होने पर फिर से शुरू करें।",
+      bn: "ট্রান্সফার বাতিল হয়েছে। প্রস্তুত হলে আবার শুরু করুন।",
+      mr: "ट्रान्सफर रद्द झाला. तयार झाल्यावर पुन्हा सुरू करा.",
+    },
+  };
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function pickVoice(langCode) {
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+  const lc = (langCode || '').toLowerCase();
+  const prefix = lc.split('-')[0];
+  // 1. Exact language match (e.g. hi-IN)
+  let v = voices.find(v => v.lang.toLowerCase() === lc);
+  // 2. Any voice whose lang starts with the language prefix (hi, ta, bn, mr)
+  if (!v) v = voices.find(v => v.lang.toLowerCase().startsWith(prefix + '-') || v.lang.toLowerCase() === prefix);
+  // 3. Indian-English voice ONLY for English
+  if (!v && prefix === 'en') v = voices.find(v => v.lang.toLowerCase() === 'en-in');
+  // 4. Any voice whose name hints at the language
+  if (!v) {
+    const hintRegex = new RegExp(prefix === 'hi' ? 'india|hindi|ravi|heera|lekha|kalpana' : prefix, 'i');
+    v = voices.find(v => hintRegex.test(v.name));
+  }
+  // If no matching voice is found, DO NOT fallback to an English voice for Hindi/Marathi/Bangla
+  // Returning null allows the browser to natively use utter.lang to pick the system voice.
+  return v || null;
+}
+
+function speak(text, langCode) {
+  return queueSpeechItems([{ text, lang: langCode || "en-IN", purpose: "prompt" }]);
+}
+
+function stopSpeak() {
+  speechState.token += 1;
+  if (speechState.activeAudio) {
+    try {
+      speechState.activeAudio.pause();
+      speechState.activeAudio.currentTime = 0;
+    } catch (error) {
+      // no-op
+    }
+    speechState.activeAudio = null;
+  }
+  updateDiagnostics({ ttsStatus: "idle" });
+}
+
+// ============================================================
+// SHARED VOICE HELPERS
+// ============================================================
+
+// --- Multilingual spoken repeat helper ---
+// Voice confirmation post the terminal execution of each step
+// Instructions are clearly repeated in English, Hindi, Bengali and Marathi
+const REPEATED_SPEECH_LANGS = [
+  { code: 'en', ttsCode: 'en-IN', label: 'English' },
+  { code: 'hi', ttsCode: 'hi-IN', label: 'Hindi' },
+  { code: 'bn', ttsCode: 'bn-IN', label: 'Bengali' },
+  { code: 'mr', ttsCode: 'mr-IN', label: 'Marathi' },
+];
+
+function buildRepeatedSpeech(translations) {
+  return queueSpeechItems(
+    REPEATED_SPEECH_LANGS
+      .filter(lang => translations[lang.code])
+      .map(lang => ({
+        text: translations[lang.code],
+        lang: lang.ttsCode,
+        purpose: "repeated-instruction",
+      })),
+  );
+}
+
+// Voice confirmation after each action — post-step spoken feedback
+// in English, Hindi, Bengali, and Marathi
+const STEP_CONFIRMATIONS = {
+  C2_amount_set: {
+    en: 'Amount set. Please confirm before entering PIN.',
+    hi: 'राशि तय हो गई। पिन डालने से पहले पुष्टि करें।',
+    bn: 'পরিমাণ নির্ধারণ হয়েছে। পিন দেওয়ার আগে নিশ্চিত করুন।',
+    mr: 'रक्कम ठरली. पिन टाकण्यापूर्वी खात्री करा.',
+  },
+  C2_custom_amount_heard: {
+    en: 'We heard your amount. Please check and confirm.',
+    hi: 'आपकी बोली राशि सुनी। कृपया जाँचें और पुष्टि करें।',
+    bn: 'আপনার বলা পরিমাণ শোনা হয়েছে। দয়া করে যাচাই করে নিশ্চিত করুন।',
+    mr: 'तुमची बोललेली रक्कम ऐकली. कृपया तपासा आणि खात्री करा.',
+  },
+  C2_sent: {
+    en: 'Money sent successfully. Receipt number spoken.',
+    hi: 'पैसा भेज दिया गया। रसीद नंबर बता दिया।',
+    bn: 'টাকা পাঠানো হয়েছে। রসিদ নম্বর বলা হয়েছে।',
+    mr: 'पैसे पाठवले गेले. पावती क्रमांक सांगितला.',
+  },
+  B2_recorded: {
+    en: 'Your complaint has been recorded. Please confirm.',
+    hi: 'आपकी शिकायत रिकॉर्ड हो गई। कृपया पुष्टि करें।',
+    bn: 'আপনার অভিযোগ রেকর্ড হয়েছে। দয়া করে নিশ্চিত করুন।',
+    mr: 'तुमची तक्रार नोंदवली गेली. कृपया खात्री करा.',
+  },
+  B2_filed: {
+    en: 'Complaint filed. Remember your complaint number.',
+    hi: 'शिकायत दर्ज हो गई। शिकायत नंबर याद रखें।',
+    bn: 'অভিযোগ দাখিল হয়েছে। অভিযোগ নম্বর মনে রাখুন।',
+    mr: 'तक्रार दाखल झाली. तक्रार क्रमांक लक्षात ठेवा.',
+  },
+  B5_saved: {
+    en: 'Diary entry saved. Your recording is safe.',
+    hi: 'डायरी सेव हो गई। आपकी रिकॉर्डिंग सुरक्षित है।',
+    bn: 'ডায়েরি সেভ হয়েছে। আপনার রেকর্ডিং নিরাপদ।',
+    mr: 'डायरी सेव झाली. तुमचं रेकॉर्डिंग सुरक्षित आहे.',
+  },
+  B5_pattern: {
+    en: 'A pattern was found in your diary. Would you like to file a complaint?',
+    hi: 'आपकी डायरी में एक पैटर्न मिला। क्या शिकायत दर्ज करना चाहते हैं?',
+    bn: 'আপনার ডায়েরিতে একটি প্যাটার্ন পাওয়া গেছে। অভিযোগ করতে চান?',
+    mr: 'तुमच्या डायरीत एक पॅटर्न सापडला. तक्रार करायची का?',
+  },
+};
+
+// --- Tiny persistence store (survives reload, degrades to in-memory) ---
+// Used by C3r (transfer history) and B5 (voice diary) so longitudinal
+// pattern detection isn't wiped by reloads or incognito mode.
+const cbcStore = (() => {
+  let storageOk = true;
+  try {
+    const k = '__cbc_probe__';
+    window.localStorage.setItem(k, '1');
+    window.localStorage.removeItem(k);
+  } catch (e) {
+    storageOk = false;
+  }
+  const mem = {};
+  return {
+    ok: storageOk,
+    get(key, fallback) {
+      try {
+        if (!storageOk) return mem[key] ?? fallback;
+        const raw = window.localStorage.getItem(key);
+        return raw == null ? fallback : JSON.parse(raw);
+      } catch (e) { return fallback; }
+    },
+    set(key, val) {
+      try {
+        if (!storageOk) { mem[key] = val; return; }
+        window.localStorage.setItem(key, JSON.stringify(val));
+      } catch (e) { mem[key] = val; }
+    },
+    push(key, item, cap = 50) {
+      const arr = this.get(key, []);
+      arr.push({ ...item, ts: Date.now() });
+      while (arr.length > cap) arr.shift();
+      this.set(key, arr);
+      return arr;
+    },
+  };
+})();
+
+// --- Shared useVoiceCapture hook ---
+// Wraps SpeechRecognition for mic-based capture with transcript
+// Auto-restarts if recognition ends prematurely (e.g. mic permission dialog)
+function useVoiceCapture(langCode) {
+  const [status, setStatus] = React.useState('idle'); // idle | listening | heard | confirmed | unclear | error | unsupported
+  const [transcript, setTranscript] = React.useState('');
+  const [isFinal, setIsFinal] = React.useState(false);
+  const [confidence, setConfidence] = React.useState(0);
+  const recognitionRef = React.useRef(null);
+  const wantListeningRef = React.useRef(false); // true = user wants mic on
+  const startTimeRef = React.useRef(0);         // tracks when we started
+  const restartCountRef = React.useRef(0);      // prevent infinite restart loops
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  const start = React.useCallback(() => {
+    if (!SpeechRecognition) { setStatus('unsupported'); return; }
+    wantListeningRef.current = true;
+    restartCountRef.current = 0;
+    try {
+      // If there's an existing instance, stop it first
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch(e) {}
+      }
+      const recognition = new SpeechRecognition();
+      recognition.lang = langCode || 'hi-IN';
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 5; // try multiple candidates — helps code-switching / dialects
+      recognition.continuous = true;
+
+      recognition.onstart = () => {
+        startTimeRef.current = Date.now();
+        setStatus('listening');
+      };
+      recognition.onresult = (event) => {
+        // Concatenate the top alternative for display, but also collect all
+        // alternatives so downstream parsers (e.g. amount extraction) can
+        // try each candidate — helps when the locked STT language mis-hears
+        // code-switched or regional-dialect speech.
+        let fullTranscript = '';
+        const allAlts = [];
+        let finalResult = false;
+        let bestConf = 0;
+        for (let i = 0; i < event.results.length; i++) {
+          const result = event.results[i];
+          fullTranscript += result[0].transcript;
+          for (let a = 0; a < result.length; a++) {
+            allAlts.push(result[a].transcript);
+            bestConf = Math.max(bestConf, result[a].confidence || 0);
+          }
+          if (result.isFinal) finalResult = true;
+        }
+        setTranscript(fullTranscript);
+        window.__CBC_LAST_ALTS = allAlts;
+        setIsFinal(finalResult);
+        setConfidence(bestConf);
+        if (finalResult) {
+          setStatus(bestConf > 0.5 ? 'heard' : 'unclear');
+        }
+      };
+      recognition.onerror = (e) => {
+        const elapsed = Date.now() - startTimeRef.current;
+        // Ignore no-speech errors in the first 5 seconds (grace period for mic permission)
+        if (e.error === 'no-speech' && elapsed < 5000 && wantListeningRef.current) {
+          // Don't set error status — onend will auto-restart
+          return;
+        }
+        if (e.error === 'aborted') return; // we aborted it ourselves
+        if (e.error === 'no-speech') setStatus('unclear');
+        else if (e.error === 'not-allowed') setStatus('error');
+        else setStatus('error');
+      };
+      recognition.onend = () => {
+        // Auto-restart if user still wants to listen
+        if (wantListeningRef.current && restartCountRef.current < 10) {
+          restartCountRef.current++;
+          setTimeout(() => {
+            if (wantListeningRef.current) {
+              try { recognition.start(); } catch(e) {
+                setStatus('error');
+              }
+            }
+          }, 300);
+        } else if (wantListeningRef.current) {
+          // Exhausted restart budget — surface error instead of silently going idle
+          wantListeningRef.current = false;
+          setStatus('error');
+        }
+      };
+      recognitionRef.current = recognition;
+      setTranscript('');
+      setIsFinal(false);
+      setConfidence(0);
+      recognition.start();
+    } catch (e) {
+      setStatus('error');
+    }
+  }, [langCode, SpeechRecognition]);
+
+  const stop = React.useCallback(() => {
+    wantListeningRef.current = false;
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch(e) {}
+    }
+  }, []);
+
+  const reset = React.useCallback(() => {
+    wantListeningRef.current = false;
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch(e) {}
+    }
+    setStatus('idle');
+    setTranscript('');
+    setIsFinal(false);
+    setConfidence(0);
+  }, []);
+
+  return { status, transcript, isFinal, confidence, start, stop, reset };
+}
+
+// --- speakInstructions helper ---
+// Reads the same COPY entry in all 4 languages (hi, bn, mr + English fallback)
+// protoKey = 'B2' | 'B5' | 'C2' etc., copyKey = 'prompt' | 'menu' etc.
+function speakInstructions(protoKey, copyKey) {
+  const proto = COPY[protoKey];
+  if (!proto) return;
+  // Build translations from all available languages
+  const translations = {};
+  // English first — use 'hi' text as English isn't always in COPY, but speak in English voice
+  // Actually let's just use whatever languages are available in COPY
+  const langMap = { hi: 'hi', ta: 'ta', bn: 'bn', mr: 'mr' };
+  // Map COPY lang keys to REPEATED_SPEECH_LANGS codes
+  const copyToSpeech = { hi: 'hi', ta: 'ta', bn: 'bn', mr: 'mr' };
+  for (const [copyLang, speechCode] of Object.entries(copyToSpeech)) {
+    if (proto[copyLang] && proto[copyLang][copyKey]) {
+      translations[speechCode] = proto[copyLang][copyKey];
+    }
+  }
+  if (Object.keys(translations).length > 0) {
+    buildRepeatedSpeech(translations);
+  }
+}
+
+// --- VoiceStatusCard component ---
+function VoiceStatusCard({ status, transcript, confidence, onRetry, onConfirm, label }) {
+  const statusCfg = {
+    idle:        { icon: '🎤', color: 'gray',   text: 'Ready to listen' },
+    listening:   { icon: '🔴', color: 'red',    text: 'Listening...' },
+    heard:       { icon: '✅', color: 'green',  text: 'Heard clearly' },
+    confirmed:   { icon: '✓',  color: 'green',  text: 'Confirmed' },
+    unclear:     { icon: '❓', color: 'amber',  text: 'Unclear — try again?' },
+    error:       { icon: '⚠️', color: 'red',    text: 'Mic error' },
+    unsupported: { icon: '🚫', color: 'gray',   text: 'Voice not available — use buttons' },
+  };
+  const cfg = statusCfg[status] || statusCfg.idle;
+  const borderClass = {
+    gray: 'border-gray-300 bg-gray-50',
+    red: 'border-red-400 bg-red-50',
+    green: 'border-green-400 bg-green-50',
+    amber: 'border-amber-400 bg-amber-50',
+  }[cfg.color] || 'border-gray-300 bg-gray-50';
+
+  return (
+    <div className={`mt-2 p-3 rounded-xl border-2 transition ${borderClass}`}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className={`text-lg ${status === 'listening' ? 'mic-pulse inline-block rounded-full w-6 h-6 flex items-center justify-center bg-red-100' : ''}`}>{cfg.icon}</span>
+        <span className="text-xs font-bold">{label || 'VOICE INPUT'}</span>
+        <span className="text-xs text-gray-500 ml-auto">{cfg.text}</span>
+      </div>
+      {transcript && (
+        <div className="mt-1 p-2 bg-white rounded-lg border">
+          <div className="text-xs text-gray-500 mb-0.5">Transcript:</div>
+          <div className="text-sm font-medium text-gray-800">"{transcript}"</div>
+          {confidence > 0 && <div className="text-xs text-gray-400 mt-0.5">Confidence: {Math.round(confidence * 100)}%</div>}
+        </div>
+      )}
+      <div className="flex gap-2 mt-2">
+        {onRetry && (status === 'heard' || status === 'unclear' || status === 'error') && (
+          <button onClick={onRetry} className="text-xs px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg font-semibold">🔄 Retry</button>
+        )}
+        {onConfirm && status === 'heard' && (
+          <button onClick={onConfirm} className="text-xs px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-800 rounded-lg font-semibold">✓ Confirm</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Extract number from spoken transcript ---
+// Convert Devanagari / Bengali / Tamil / Gujarati digits to ASCII
+function normalizeDigitsToAscii(text) {
+  if (!text) return '';
+  const map = {
+    // Devanagari 0-9
+    '०':'0','१':'1','२':'2','३':'3','४':'4','५':'5','६':'6','७':'7','८':'8','९':'9',
+    // Bengali 0-9
+    '০':'0','১':'1','২':'2','৩':'3','৪':'4','৫':'5','৬':'6','৭':'7','৮':'8','৯':'9',
+    // Tamil 0-9
+    '௦':'0','௧':'1','௨':'2','௩':'3','௪':'4','௫':'5','௬':'6','௭':'7','௮':'8','௯':'9',
+    // Gujarati 0-9
+    '૦':'0','૧':'1','૨':'2','૩':'3','૪':'4','૫':'5','૬':'6','૭':'7','૮':'8','૯':'9',
+  };
+  return String(text).replace(/[०-९০-৯௦-௯૦-૯]/g, ch => map[ch] || ch);
+}
+
+function extractAmountFromTranscript(text) {
+  // Accept either a single string or an array of STT alternatives.
+  const candidates = Array.isArray(text) ? text : [text];
+  // Also pull in the most recent multi-alternative buffer from the STT hook.
+  if (window.__CBC_LAST_ALTS && Array.isArray(window.__CBC_LAST_ALTS)) {
+    candidates.push(...window.__CBC_LAST_ALTS);
+  }
+
+  for (const raw of candidates) {
+    const result = extractOne(raw);
+    if (result != null) return result;
+  }
+  return null;
+
+  function extractOne(t) {
+  if (!t) return null;
+  t = normalizeDigitsToAscii(t);
+  // Try to find digits first
+  const digitMatch = t.match(/\d+/);
+  if (digitMatch) return parseInt(digitMatch[0], 10);
+  // Hindi/Marathi/Bengali number words
+  const wordMap = {
+    // Hindi
+    'सौ': 100, 'दो सौ': 200, 'तीन सौ': 300, 'चार सौ': 400, 'पाँच सौ': 500,
+    'छह सौ': 600, 'सात सौ': 700, 'आठ सौ': 800, 'नौ सौ': 900, 'हज़ार': 1000,
+    'एक हज़ार': 1000, 'दो हज़ार': 2000, 'पाँच हज़ार': 5000,
+    // English
+    'hundred': 100, 'two hundred': 200, 'three hundred': 300, 'four hundred': 400,
+    'five hundred': 500, 'six hundred': 600, 'seven hundred': 700, 'eight hundred': 800,
+    'nine hundred': 900, 'thousand': 1000, 'one thousand': 1000, 'two thousand': 2000,
+    'five thousand': 5000,
+    // Bangla
+    'একশো': 100, 'দুইশো': 200, 'তিনশো': 300, 'চারশো': 400, 'পাঁচশো': 500,
+    'আটশো': 800, 'হাজার': 1000, 'এক হাজার': 1000,
+    // Marathi
+    'शंभर': 100, 'दोनशे': 200, 'तीनशे': 300, 'चारशे': 400, 'पाचशे': 500,
+    'आठशे': 800, 'हजार': 1000,
+    // Tamil
+    'நூறு': 100, 'இருநூறு': 200, 'முந்நூறு': 300, 'நானூறு': 400, 'ஐநூறு': 500,
+    'அறுநூறு': 600, 'எழுநூறு': 700, 'எண்ணூறு': 800, 'தொள்ளாயிரம்': 900, 'ஆயிரம்': 1000,
+    // Gujarati
+    'સો': 100, 'બસો': 200, 'ત્રણસો': 300, 'ચારસો': 400, 'પાંચસો': 500,
+    'આઠસો': 800, 'હજાર': 1000,
+  };
+  const lower = t.toLowerCase();
+  for (const [word, val] of Object.entries(wordMap)) {
+    if (lower.includes(word.toLowerCase()) || t.includes(word)) return val;
+  }
+  return null;
+  }
+}
+
+function Phone({ children, shaking, vibrating, ringing }) {
+  let cls = "relative mx-auto";
+  if (shaking) cls += " shake-anim";
+  if (vibrating) cls += " vibrate-anim";
+  return (
+    <div className={cls} style={{ width: 300 }}>
+      <div className="bg-gray-900 rounded-[40px] p-3 shadow-2xl border-2 border-gray-800">
+        <div className="bg-gray-700 w-24 h-1.5 rounded-full mx-auto mb-2 opacity-50" />
+        <div className="phone-screen rounded-[28px] overflow-hidden" style={{ height: 520 }}>
+          {children}
+        </div>
+        <div className="w-12 h-12 bg-gray-800 rounded-full mx-auto mt-3 border border-gray-700" />
+      </div>
+    </div>
+  );
+}
+
+function AudioBubble({ text, lang, active }) {
+  return (
+    <div className={`mt-4 p-3 rounded-xl border-2 transition ${active ? 'bg-blue-50 border-blue-400' : 'bg-gray-50 border-gray-200'}`}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs font-bold text-blue-600">🔊 AUDIO OUTPUT</span>
+        {active && <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
+      </div>
+      <p className="text-xs text-gray-700 italic leading-relaxed">"{text}"</p>
+      <button
+        onClick={() => speak(text, lang)}
+        className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline">
+        ▶ Play audio
+      </button>
+    </div>
+  );
+}
+
+function HapticBubble({ text, active }) {
+  return (
+    <div className={`mt-2 p-2 rounded-xl border ${active ? 'bg-amber-100 border-amber-400' : 'bg-amber-50 border-amber-200'}`}>
+      <p className="text-xs font-medium text-amber-800">📳 {text}</p>
+    </div>
+  );
+}
+
+function Steps({ steps, current }) {
+  return (
+    <div className="flex items-center justify-center gap-2 mb-4">
+      {steps.map((s, i) => (
+        <React.Fragment key={i}>
+          <div className={`flow-dot ${i === current ? 'active' : i < current ? 'done' : ''}`} />
+          {i < steps.length - 1 && <div className={`h-0.5 w-8 ${i < current ? 'bg-green-500' : 'bg-gray-300'}`} />}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function Btn({ children, onClick, variant = 'primary', disabled, className = '' }) {
+  const base = "px-5 py-3 rounded-xl font-semibold text-sm transition shadow-sm";
+  const variants = {
+    primary: "bg-green-600 hover:bg-green-700 text-white",
+    danger: "bg-red-600 hover:bg-red-700 text-white",
+    warning: "bg-amber-500 hover:bg-amber-600 text-white",
+    ghost: "bg-gray-200 hover:bg-gray-300 text-gray-800",
+    dark: "bg-gray-800 hover:bg-gray-900 text-white",
+  };
+  return (
+    <button
+      className={`${base} ${variants[variant]} ${disabled ? 'opacity-40 cursor-not-allowed' : ''} ${className}`}
+      onClick={onClick}
+      disabled={disabled}>
+      {children}
+    </button>
+  );
+}
+
+// ============================================================
+// A2: MISSED CALL PAYSLIP
+// ============================================================
+function A2({ lang }) {
+  const [step, setStep] = useState(0);
+  const [error, setError] = useState(null);
+  const steps = ["Dial", "Callback", "Wage", "Weekly", "End"];
+  const c = COPY.A2[lang];
+
+  useEffect(() => {
+    stopSpeak();
+    if (step === 2) speak(c.wage, LANGS[lang].ttsCode);
+    if (step === 3) speak(c.weekly, LANGS[lang].ttsCode);
+    if (step === 4) speak(c.end, LANGS[lang].ttsCode);
+    return () => stopSpeak();
+  }, [step, lang]);
+
+  const reset = () => { setStep(0); setError(null); };
+
+  return (
+    <div>
+      <Steps steps={steps} current={step} />
+
+      <div className="grid md:grid-cols-[1fr_400px] gap-8 items-start">
+        <div>
+          <Phone ringing={step === 1}>
+            {step === 0 && (
+              <div className="p-5 text-white text-center pt-12">
+                <div className="text-6xl mb-4">📞</div>
+                <div className="text-2xl font-bold mb-1">Dialing...</div>
+                <div className="text-green-400 text-xl font-mono mt-6">1800-XXX-XXXX</div>
+                <div className="text-gray-400 text-xs mt-8 leading-relaxed">
+                  Worker gives a missed call.<br/>Hangs up after 1 ring.<br/>FREE — no balance needed.
+                </div>
+                <div className="mt-6 bg-amber-900/30 border border-amber-700 rounded-lg p-2 text-amber-300 text-xs">
+                  💡 Number on sticker on phone back
+                </div>
+              </div>
+            )}
+            {step === 1 && (
+              <div className="p-5 text-white text-center pt-8">
+                <div className="text-6xl mb-4 ring-anim inline-block">📞</div>
+                <div className="text-xl font-bold">Incoming Call</div>
+                <div className="text-green-400 mt-2 font-semibold">DIHADI HELPLINE</div>
+                <div className="text-gray-400 text-xs mt-8">System calls back for free.<br/>Most familiar phone action.</div>
+                <div className="mt-8 bg-green-600 rounded-xl p-3 text-lg font-bold">
+                  🟢 Pick Up
+                </div>
+              </div>
+            )}
+            {step === 2 && (
+              <div className="p-5 text-white text-center pt-6">
+                <div className="text-4xl mb-2">🔊</div>
+                <div className="text-green-400 text-sm font-bold mb-3">Playing wage slip...</div>
+                <div className="border-t border-gray-700 mb-3"></div>
+                <div className="text-5xl font-bold text-green-400 my-2">₹800</div>
+                <div className="text-gray-400 text-xs">14 April · Tile Fitting</div>
+                <div className="text-gray-400 text-xs mb-4">Rajesh Kumar (Contractor)</div>
+                <div className="border-t border-gray-700 mb-3"></div>
+                <div className="text-xs text-amber-300 leading-relaxed text-left px-2">
+                  <div>1 → Repeat</div>
+                  <div>2 → Weekly total</div>
+                  <div>9 → Dispute</div>
+                  <div>* → Change language</div>
+                </div>
+              </div>
+            )}
+            {step === 3 && (
+              <div className="p-5 text-white text-center pt-6">
+                <div className="text-4xl mb-2">🔊</div>
+                <div className="text-sm font-bold mb-3">Weekly Total</div>
+                <div className="border-t border-gray-700 mb-3"></div>
+                <div className="text-4xl font-bold text-green-400 my-2">₹4,400</div>
+                <div className="text-gray-400 text-xs mb-3">5 days this week</div>
+                <div className="text-gray-300 text-xs text-left px-4 space-y-0.5">
+                  <div>Mon ₹800 · Tue ₹800</div>
+                  <div>Wed ₹900 · Thu ₹800</div>
+                  <div>Fri ₹800 · Sat —</div>
+                </div>
+                <div className="border-t border-gray-700 my-3"></div>
+                <div className="text-xs text-amber-300 text-left px-4">
+                  <div>1 → Repeat</div>
+                  <div>9 → Dispute</div>
+                </div>
+              </div>
+            )}
+            {step === 4 && (
+              <div className="p-5 text-white text-center pt-12">
+                <div className="text-7xl mb-4 text-green-400">✓</div>
+                <div className="text-2xl font-bold mb-3">Call Ended</div>
+                <div className="text-gray-400 text-sm">5 seconds of silence</div>
+                <div className="text-gray-400 text-sm mb-6">= auto hang-up</div>
+                <div className="text-gray-500 text-xs">Nothing saved. Nothing changed.<br/>Pure information delivery.</div>
+              </div>
+            )}
+          </Phone>
+        </div>
+
+        <div className="space-y-3">
+          <div className="bg-white p-4 rounded-xl shadow-sm border">
+            <div className="text-xs font-bold text-gray-500 mb-2">STEP {step + 1} OF {steps.length}</div>
+            <h3 className="font-bold text-lg">{steps[step]}</h3>
+          </div>
+
+          {step === 2 && <AudioBubble text={c.wage} lang={LANGS[lang].ttsCode} active={true} />}
+          {step === 3 && <AudioBubble text={c.weekly} lang={LANGS[lang].ttsCode} active={true} />}
+          {step === 4 && <AudioBubble text={c.end} lang={LANGS[lang].ttsCode} active={true} />}
+
+          <div className="bg-white p-4 rounded-xl shadow-sm border space-y-2">
+            <div className="text-xs font-bold text-gray-500">ACTIONS</div>
+            {step === 0 && <Btn onClick={() => setStep(1)} variant="primary">📞 Give Missed Call</Btn>}
+            {step === 1 && <Btn onClick={() => setStep(2)} variant="primary">🟢 Answer Call</Btn>}
+            {step === 2 && (
+              <>
+                <Btn onClick={() => { speak(c.wage, LANGS[lang].ttsCode); }} variant="ghost" className="block w-full text-left">Press 1 — Repeat</Btn>
+                <Btn onClick={() => setStep(3)} variant="primary" className="block w-full text-left">Press 2 — Weekly Total</Btn>
+                <Btn onClick={() => setError("Complaint routed. Try B2 prototype.")} variant="warning" className="block w-full text-left">Press 9 — Dispute</Btn>
+                <Btn onClick={() => setStep(4)} variant="ghost" className="block w-full text-left">Stay silent 5s</Btn>
+              </>
+            )}
+            {step === 3 && (
+              <>
+                <Btn onClick={() => { setStep(2); }} variant="ghost" className="block w-full text-left">Press 1 — Repeat Wage</Btn>
+                <Btn onClick={() => setStep(4)} variant="primary" className="block w-full text-left">Stay silent 5s</Btn>
+              </>
+            )}
+            {step === 4 && <Btn onClick={reset} variant="dark">🔄 Redial</Btn>}
+          </div>
+
+          {error && (
+            <div className="bg-amber-50 border border-amber-300 p-3 rounded-xl text-xs text-amber-800">
+              {error} <button onClick={() => setError(null)} className="underline ml-1">close</button>
+            </div>
+          )}
+
+          <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl text-xs text-blue-900">
+            <strong>🛡️ Safety:</strong> No action = call ends. Wrong key = IVR repeats. Call drop = redial. Pure read-only — nothing irreversible.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// A3: SHAKE-TO-SPEAK
+// ============================================================
+function A3({ lang }) {
+  const [step, setStep] = useState(0);
+  const [shakeCount, setShakeCount] = useState(0);
+  const [shaking, setShaking] = useState(false);
+  const steps = ["Locked", "Shake", "Speaking", "End"];
+  const c = COPY.A3[lang];
+
+  const doShake = () => {
+    setShaking(true);
+    setTimeout(() => setShaking(false), 400);
+    const newCount = shakeCount + 1;
+    setShakeCount(newCount);
+    if (step === 0 && newCount >= 3) {
+      setTimeout(() => { setStep(1); setShakeCount(0); }, 400);
+      setTimeout(() => { setStep(2); speak(c.wage, LANGS[lang].ttsCode); }, 1400);
+    }
+    if (step === 2) {
+      if (newCount === 1) {
+        setTimeout(() => speak(c.wage, LANGS[lang].ttsCode), 200);
+      } else if (newCount >= 2) {
+        stopSpeak();
+        setStep(3);
+      }
+    }
+  };
+
+  useEffect(() => { setShakeCount(0); }, [step]);
+  useEffect(() => () => stopSpeak(), []);
+
+  const reset = () => { stopSpeak(); setStep(0); setShakeCount(0); };
+
+  return (
+    <div>
+      <Steps steps={steps} current={step} />
+
+      <div className="grid md:grid-cols-[1fr_400px] gap-8 items-start">
+        <Phone shaking={shaking}>
+          {step === 0 && (
+            <div className="p-5 text-white text-center pt-16">
+              <div className="text-6xl mb-4">🔒</div>
+              <div className="text-3xl font-bold mb-1">6:47 PM</div>
+              <div className="text-gray-400 text-sm">Tue, 14 April</div>
+              <div className="text-gray-500 text-xs mt-10">
+                Screen is LOCKED.<br/>Phone in pocket.<br/>No app open.
+              </div>
+              <div className="mt-6 bg-amber-900/30 border border-amber-700 rounded-lg p-2 text-amber-300 text-xs">
+                Shake 3 times to hear today's wage
+              </div>
+            </div>
+          )}
+          {step === 1 && (
+            <div className="p-5 text-white text-center pt-12">
+              <div className="text-6xl mb-4 text-amber-400">〰️</div>
+              <div className="text-xl font-bold text-amber-400 mb-3">Detecting...</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-green-400 space-y-1 text-sm">
+                <div>Shake 1 ✓</div>
+                <div>Shake 2 ✓</div>
+                <div>Shake 3 ✓</div>
+              </div>
+              <div className="text-gray-500 text-xs mt-4">Holding still for 1s<br/>to confirm intent...</div>
+            </div>
+          )}
+          {step === 2 && (
+            <div className="p-5 text-white text-center pt-10">
+              <div className="text-6xl mb-3 text-green-400">🔊</div>
+              <div className="text-green-400 font-bold mb-2">Speaking...</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-5xl font-bold text-green-400 my-4">₹800</div>
+              <div className="text-gray-500 text-xs mb-4">(Screen still locked)</div>
+              <div className="text-amber-300 text-xs">Plays through main speaker.<br/>Worker hears through pocket.</div>
+            </div>
+          )}
+          {step === 3 && (
+            <div className="p-5 text-white text-center pt-16">
+              <div className="text-6xl mb-4">🔒</div>
+              <div className="text-2xl font-bold mb-3">Back to locked</div>
+              <div className="text-gray-400 text-sm">Nothing saved.<br/>Nothing changed.</div>
+              <div className="mt-6 text-amber-300 text-xs">Shake again anytime.</div>
+            </div>
+          )}
+        </Phone>
+
+        <div className="space-y-3">
+          <div className="bg-white p-4 rounded-xl shadow-sm border">
+            <div className="text-xs font-bold text-gray-500 mb-2">STEP {step + 1} OF {steps.length}</div>
+            <h3 className="font-bold text-lg">{steps[step]}</h3>
+            {step === 0 && <div className="text-xs text-gray-600 mt-1">Shake count: {shakeCount} / 3</div>}
+          </div>
+
+          {step === 2 && <AudioBubble text={c.wage} lang={LANGS[lang].ttsCode} active={true} />}
+
+          <div className="bg-white p-4 rounded-xl shadow-sm border space-y-2">
+            <div className="text-xs font-bold text-gray-500">ACTIONS</div>
+            {step === 0 && (
+              <Btn onClick={doShake} variant="warning" className="w-full">
+                〰️ Shake phone ({shakeCount}/3)
+              </Btn>
+            )}
+            {step === 1 && <div className="text-xs text-gray-500 py-3 text-center">Auto-advancing...</div>}
+            {step === 2 && (
+              <>
+                <Btn onClick={doShake} variant="ghost" className="w-full">〰️ 1 shake — Repeat</Btn>
+                <Btn onClick={() => { doShake(); setTimeout(doShake, 100); }} variant="danger" className="w-full">〰️〰️ 2 shakes — Stop</Btn>
+              </>
+            )}
+            {step === 3 && <Btn onClick={reset} variant="dark">Return to idle</Btn>}
+          </div>
+
+          <HapticBubble text={step === 1 ? "Single acknowledging buzz" : step === 3 ? "Single buzz on stop" : "Silent — no feedback yet"} active={step === 1 || step === 3} />
+
+          <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl text-xs text-blue-900">
+            <strong>🛡️ Safety:</strong> Requires 3 shakes &gt;2.5g within 1s followed by 1s stillness. Construction vibration will NOT trigger.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+// ============================================================
+// B2: MISSED CALL GRIEVANCE — with mic capture + multilingual confirmations
+// ============================================================
+function B2({ lang }) {
+  const [step, setStep] = useState(0);
+  const [category, setCategory] = useState(null);
+  const [recording, setRecording] = useState(false);
+  const [recTime, setRecTime] = useState(0);
+  const [discardCountdown, setDiscardCountdown] = useState(0); // Auto-discard in {n}
+  const [silenceCountdown, setSilenceCountdown] = useState(10);
+  const voice = useVoiceCapture(LANGS[lang].ttsCode);
+  const steps = ["Dial", "Callback", "Category", "Speak", "Confirm", "Done"];
+  const c = COPY.B2[lang];
+
+  useEffect(() => {
+    if (step === 2) speakInstructions('B2', 'prompt');
+    if (step === 3) speakInstructions('B2', 'speak');
+    if (step === 4) {
+      speakInstructions('B2', 'summary');
+      // Voice confirmation after each action — recorded in 4 languages
+      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B2_recorded), 8000);
+    }
+    if (step === 5) {
+      speakInstructions('B2', 'confirm');
+      // Voice confirmation after each action — filed in 4 languages
+      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B2_filed), 8000);
+    }
+    return () => stopSpeak();
+  }, [step, lang]);
+
+  useEffect(() => {
+    if (!recording) return;
+    const iv = setInterval(() => setRecTime(t => t + 1), 1000);
+    return () => clearInterval(iv);
+  }, [recording]);
+
+  // 10-second silence auto-stop (B2) — single interval, reset via ref on transcript change
+  const b2LastTranscriptRef = useRef('');
+  useEffect(() => { b2LastTranscriptRef.current = voice.transcript; setSilenceCountdown(10); }, [voice.transcript]);
+  useEffect(() => {
+    if (!recording) { setSilenceCountdown(10); return; }
+    setSilenceCountdown(10);
+    const iv = setInterval(() => {
+      setSilenceCountdown(t => {
+        if (t <= 1) {
+          clearInterval(iv);
+          setRecording(false);
+          voice.stop();
+          setStep(4);
+          return 10;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [recording]);
+
+  // Hard cap: 120s maximum recording regardless of transcript activity.
+  // Protects against noisy-site scenarios where interim STT results keep
+  // resetting the silence timer so the user would otherwise never auto-stop.
+  useEffect(() => {
+    if (!recording) return;
+    const t = setTimeout(() => {
+      if (!recording) return;
+      setRecording(false);
+      voice.stop();
+      setStep(4);
+    }, 120000);
+    return () => clearTimeout(t);
+  }, [recording]);
+
+  // Auto-discard in {discardCountdown}s on confirm step
+  useEffect(() => {
+    if (step !== 4) { setDiscardCountdown(0); return; }
+    setDiscardCountdown(15);
+    const iv = setInterval(() => setDiscardCountdown(t => {
+      if (t <= 1) {
+        clearInterval(iv);
+        // Auto-discard on timeout
+        reset();
+        return 0;
+      }
+      return t - 1;
+    }), 1000);
+    return () => clearInterval(iv);
+  }, [step]);
+
+  const reset = () => { setStep(0); setCategory(null); setRecording(false); setRecTime(0); setDiscardCountdown(0); voice.reset(); stopSpeak(); };
+
+  const categories = [
+    { icon: '💰', label: 'COINS', desc: 'Wage / payment', key: 'wage' },
+    { icon: '⚠️', label: 'CRASH', desc: 'Safety / injury', key: 'safety' },
+    { icon: '🤬', label: 'SHOUT', desc: 'Harassment / abuse', key: 'abuse' },
+    { icon: '🔕', label: 'OTHER', desc: 'Something else', key: 'other' },
+  ];
+
+  // Start recording with mic
+  const startVoiceRecording = () => {
+    setRecording(true);
+    voice.start();
+  };
+
+  // Stop recording
+  const stopVoiceRecording = () => {
+    setRecording(false);
+    voice.stop();
+    setStep(4);
+  };
+
+  return (
+    <div>
+      <Steps steps={steps} current={step} />
+
+      <div className="grid md:grid-cols-[1fr_400px] gap-8 items-start">
+        <Phone>
+          {step === 0 && (
+            <div className="p-5 text-white text-center pt-12">
+              <div className="text-6xl mb-4">📞</div>
+              <div className="text-2xl font-bold mb-1">Dialing...</div>
+              <div className="text-red-400 text-xl font-mono mt-6">1800-YYY-YYYY</div>
+              <div className="text-gray-400 text-xs mt-8 leading-relaxed">Grievance helpline.<br/>Different number from<br/>wage slip helpline.</div>
+              <div className="mt-6 bg-amber-900/30 border border-amber-700 rounded-lg p-2 text-amber-300 text-xs">
+                Looks like a normal missed call in call log
+              </div>
+            </div>
+          )}
+          {step === 1 && (
+            <div className="p-5 text-white text-center pt-8">
+              <div className="text-6xl mb-4 ring-anim inline-block">📞</div>
+              <div className="text-xl font-bold">Incoming Call</div>
+              <div className="text-green-400 mt-2 font-semibold">SAHAYATA LINE</div>
+              <div className="text-gray-500 text-xs mt-4">(neutral name — contractor<br/>won't recognize it)</div>
+              <div className="mt-8 bg-green-600 rounded-xl p-3 text-lg font-bold">🟢 Answer</div>
+            </div>
+          )}
+          {step === 2 && (
+            <div className="p-5 text-white text-center pt-6">
+              <div className="text-4xl mb-2">🔊</div>
+              <div className="text-amber-400 font-bold mb-3">What happened?</div>
+              <div className="text-xs text-gray-400 mb-4">Press any key during matching sound:</div>
+              <div className="space-y-2 text-left">
+                {categories.map((cat, i) => (
+                  <div key={cat.key} className="bg-gray-800 p-2 rounded-lg flex items-center gap-3">
+                    <div className="text-2xl">{cat.icon}</div>
+                    <div>
+                      <div className="text-xs font-bold">[{cat.label}]</div>
+                      <div className="text-xs text-gray-400">{cat.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {step === 3 && (
+            <div className="p-5 text-white text-center pt-6">
+              <div className="text-6xl mb-3">{category?.icon}</div>
+              <div className="text-lg font-bold mb-1">{category?.desc}</div>
+              <div className="border-t border-gray-700 my-3"></div>
+              {recording ? (
+                <>
+                  <div className="text-red-400 font-bold text-xl mb-2">🔴 {String(Math.floor(recTime/60)).padStart(2,'0')}:{String(recTime%60).padStart(2,'0')}</div>
+                  <div className="text-gray-400 text-xs">Worker speaks freely.<br/>2 min max.<br/>10s silence = auto-save.</div>
+                  {/* B2 transcript review — show live transcript */}
+                  {voice.transcript && (
+                    <div className="mt-3 p-2 bg-gray-800 rounded-lg text-left">
+                      <div className="text-xs text-gray-400">B2 transcript review:</div>
+                      <div className="text-sm text-cyan-300 italic">"{voice.transcript}"</div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-gray-400 text-xs mt-4">Press button to start recording</div>
+              )}
+            </div>
+          )}
+          {step === 4 && (
+            <div className="p-5 text-white text-center pt-6">
+              <div className="text-4xl mb-2">🔊</div>
+              <div className="font-bold mb-3">Playback Summary</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-gray-300 text-xs leading-relaxed italic">"{c.summary}"</div>
+              {/* Show captured transcript if available */}
+              {voice.transcript && (
+                <div className="mt-2 p-2 bg-gray-800 rounded-lg text-left">
+                  <div className="text-xs text-gray-400">Your words:</div>
+                  <div className="text-sm text-cyan-300 italic">"{voice.transcript}"</div>
+                </div>
+              )}
+              <div className="mt-3 bg-amber-900/30 border border-amber-700 rounded p-2 text-amber-300 text-xs">
+                Auto-discard in {discardCountdown}s. No press = auto-discard.
+              </div>
+              <div className="mt-2 text-red-400 font-mono font-bold text-xl">{discardCountdown}s</div>
+            </div>
+          )}
+          {step === 5 && (
+            <div className="p-5 text-white text-center pt-8">
+              <div className="text-7xl mb-2 text-green-400">✓</div>
+              <div className="text-2xl font-bold text-green-400 mb-3">Filed</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-xs text-gray-400 mb-2">Complaint ID:</div>
+              <div className="text-5xl font-bold text-amber-400">4 — 7 — 2</div>
+              <div className="text-gray-500 text-xs mt-2">(char, saat, do)</div>
+              <div className="text-gray-400 text-xs mt-4">Callback within 24 hrs<br/>from a labor officer.</div>
+              {/* Voice confirmation after each action */}
+              <div className="mt-2 text-xs text-teal-300 italic">Voice confirmation after each action — spoken in EN, HI, BN, MR</div>
+            </div>
+          )}
+        </Phone>
+
+        <div className="space-y-3">
+          <div className="bg-white p-4 rounded-xl shadow-sm border">
+            <div className="text-xs font-bold text-gray-500 mb-2">STEP {step + 1} OF {steps.length}</div>
+            <h3 className="font-bold text-lg">{steps[step]}</h3>
+            {step === 4 && discardCountdown > 0 && (
+              <div className="text-xs text-red-600 font-mono mt-1">Auto-discard in {discardCountdown}s</div>
+            )}
+          </div>
+
+          {step === 2 && <AudioBubble text={c.prompt} lang={LANGS[lang].ttsCode} active={true} />}
+          {step === 3 && recording && <AudioBubble text={c.speak} lang={LANGS[lang].ttsCode} active={true} />}
+          {step === 4 && <AudioBubble text={c.summary} lang={LANGS[lang].ttsCode} active={true} />}
+          {step === 5 && <AudioBubble text={c.confirm} lang={LANGS[lang].ttsCode} active={true} />}
+
+          {/* B2 transcript review — VoiceStatusCard for capture */}
+          {step === 3 && recording && (
+            <VoiceStatusCard
+              status={voice.status}
+              transcript={voice.transcript}
+              confidence={voice.confidence}
+              label="B2 transcript review"
+            />
+          )}
+
+          <div className="bg-white p-4 rounded-xl shadow-sm border space-y-2">
+            <div className="text-xs font-bold text-gray-500">ACTIONS</div>
+            {step === 0 && <Btn onClick={() => setStep(1)} variant="primary">📞 Give Missed Call</Btn>}
+            {step === 1 && <Btn onClick={() => setStep(2)} variant="primary">🟢 Answer Call</Btn>}
+            {step === 2 && (
+              <div className="space-y-2">
+                <div className="text-xs text-gray-600">Tap category when you hear matching sound:</div>
+                {categories.map(cat => (
+                  <Btn key={cat.key} onClick={() => { setCategory(cat); setStep(3); }} variant="ghost" className="w-full text-left">
+                    {cat.icon} Press during {cat.label}
+                  </Btn>
+                ))}
+              </div>
+            )}
+            {step === 3 && (
+              <>
+                {!recording && <Btn onClick={startVoiceRecording} variant="danger" className="w-full">🎤 Start speaking</Btn>}
+                {recording && (
+                  <>
+                    <div className="text-xs text-gray-500 text-center py-2">Recording... ({recTime}s)</div>
+                    <Btn onClick={stopVoiceRecording} variant="primary" className="w-full">Stop + 10s silence → Continue</Btn>
+                  </>
+                )}
+                {!recording && voice.status === 'unsupported' && (
+                  <div className="text-xs text-amber-600 mt-1">Voice not available — button fallback active</div>
+                )}
+              </>
+            )}
+            {step === 4 && (
+              <>
+                <Btn onClick={() => setStep(5)} variant="primary" className="w-full">Press 1 — Correct, file it</Btn>
+                <Btn onClick={() => { setStep(3); setRecording(false); setRecTime(0); voice.reset(); }} variant="warning" className="w-full">Press 2 — Wrong, restart</Btn>
+                <Btn onClick={reset} variant="ghost" className="w-full">Auto-discard in {discardCountdown}s</Btn>
+              </>
+            )}
+            {step === 5 && <Btn onClick={reset} variant="dark" className="w-full">🔄 Reset Demo</Btn>}
+          </div>
+
+          <HapticBubble text={step === 5 ? "Heartbeat ♩♩ ♩ = filed" : "No feedback until confirmation"} active={step === 5} />
+
+          <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl text-xs text-blue-900">
+            <strong>🛡️ Safety:</strong> Sound-scenes are LANGUAGE-FREE. Nothing is filed until explicit confirmation. Auto-discard in {step === 4 ? discardCountdown + 's' : '15s'} of silence = auto-discard. Looks like a normal phone call.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// B5: VOICE DIARY — with mic capture + multilingual confirmations
+// ============================================================
+function B5({ lang }) {
+  const [step, setStep] = useState(0);
+  const [atEar, setAtEar] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recTime, setRecTime] = useState(0);
+  const [silenceCountdown, setSilenceCountdown] = useState(10);
+  const voice = useVoiceCapture(LANGS[lang].ttsCode);
+  const steps = ["7PM Prompt", "To Ear", "Speak", "Saved", "Pattern Flag"];
+  const c = COPY.B5[lang];
+
+  useEffect(() => {
+    if (step === 1) speakInstructions('B5', 'prompt');
+    if (step === 3) {
+      speakInstructions('B5', 'saved');
+      // Voice confirmation after each action — diary saved in 4 languages
+      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B5_saved), 6000);
+    }
+    if (step === 4) {
+      speakInstructions('B5', 'pattern');
+      // Voice confirmation after each action — pattern found in 4 languages
+      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B5_pattern), 8000);
+    }
+    return () => stopSpeak();
+  }, [step, lang]);
+
+  useEffect(() => {
+    if (!recording) return;
+    const iv = setInterval(() => setRecTime(t => t + 1), 1000);
+    return () => clearInterval(iv);
+  }, [recording]);
+
+  // 10-second silence auto-save (B5) — single interval, reset via transcript effect
+  useEffect(() => { setSilenceCountdown(10); }, [voice.transcript]);
+  useEffect(() => {
+    if (!recording) { setSilenceCountdown(10); return; }
+    setSilenceCountdown(10);
+    const iv = setInterval(() => {
+      setSilenceCountdown(t => {
+        if (t <= 1) {
+          clearInterval(iv);
+          setRecording(false);
+          voice.stop();
+          setStep(3);
+          return 10;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [recording]);
+
+  // Hard cap: 120s max recording even if ambient noise keeps STT "speaking".
+  useEffect(() => {
+    if (!recording) return;
+    const t = setTimeout(() => {
+      if (!recording) return;
+      setRecording(false);
+      voice.stop();
+      setStep(3);
+    }, 120000);
+    return () => clearTimeout(t);
+  }, [recording]);
+
+  const reset = () => { setStep(0); setAtEar(false); setRecording(false); setRecTime(0); setSilenceCountdown(10); voice.reset(); stopSpeak(); };
+
+  // Start recording with mic
+  const startDiaryRecording = () => {
+    setRecording(true);
+    setStep(2);
+    voice.start();
+  };
+
+  // Stop recording + persist the diary entry so pattern-flag survives reload
+  const stopDiaryRecording = () => {
+    setRecording(false);
+    voice.stop();
+    cbcStore.push('cbc.b5.diary', {
+      transcript: voice.transcript || '',
+      lang,
+      wageFlag: /paisa|wage|pay|koolie|mazdoori|मजदूरी|पैसा|pagar|দিয়া/i.test(voice.transcript || ''),
+    }, 30);
+    setStep(3);
+  };
+
+  return (
+    <div>
+      <Steps steps={steps} current={step} />
+
+      <div className="grid md:grid-cols-[1fr_400px] gap-8 items-start">
+        <Phone vibrating={step === 0}>
+          {step === 0 && (
+            <div className="p-5 text-white text-center pt-14">
+              <div className="text-6xl mb-4">🕖</div>
+              <div className="text-3xl font-bold mb-1">7:00 PM</div>
+              <div className="text-gray-400 text-sm">Tuesday, 14 April</div>
+              <div className="text-gray-500 text-xs mt-10">
+                Screen stays off.<br/>Phone in pocket.<br/>Day's work is done.
+              </div>
+              <div className="mt-6 bg-teal-900/30 border border-teal-700 rounded-lg p-2 text-teal-300 text-xs vibrate-anim">
+                📳 Diary pattern: 4 slow pulses
+              </div>
+            </div>
+          )}
+          {step === 1 && (
+            <div className="p-5 text-white text-center pt-10">
+              <div className="text-6xl mb-4 text-green-400">👂</div>
+              <div className="text-green-400 font-bold mb-3">Listening...</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-gray-300 text-sm leading-relaxed italic px-2">"{c.prompt}"</div>
+              <div className="text-xs text-amber-300 mt-6">Guided prompt — helps worker<br/>structure the narrative</div>
+            </div>
+          )}
+          {step === 2 && (
+            <div className="p-5 text-white text-center pt-6">
+              <div className="text-6xl mb-3 text-red-400">🎤</div>
+              <div className="text-red-400 font-bold mb-2">Recording</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-xl font-mono mb-3">
+                {String(Math.floor(recTime/60)).padStart(2,'0')}:{String(recTime%60).padStart(2,'0')} / 03:00
+              </div>
+              {/* B5 transcript review — show live transcript from mic */}
+              {voice.transcript ? (
+                <div className="p-2 bg-gray-800 rounded-lg text-left mx-2">
+                  <div className="text-xs text-gray-400">B5 transcript review:</div>
+                  <div className="text-sm text-cyan-300 italic leading-relaxed">"{voice.transcript}"</div>
+                </div>
+              ) : (
+                <div className="text-gray-400 text-xs italic px-3 leading-relaxed">
+                  "Thik tha bhai, lekin aaj bhi woh ₹100 kam diya. Teesra din ho gaya..."
+                </div>
+              )}
+              <div className="text-xs text-amber-300 mt-4">10s silence = auto-save</div>
+            </div>
+          )}
+          {step === 3 && (
+            <div className="p-5 text-white text-center pt-10">
+              <div className="text-7xl mb-3 text-green-400">💾</div>
+              <div className="text-2xl font-bold text-green-400 mb-3">Saved</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-gray-400 text-sm">Today's diary entry locked.</div>
+              <div className="text-gray-500 text-xs mt-4">Encrypted. Private.<br/>Only you + trusted<br/>auditor can access.</div>
+              {/* Show what was captured */}
+              {voice.transcript && (
+                <div className="mt-3 p-2 bg-gray-800 rounded-lg text-left mx-2">
+                  <div className="text-xs text-gray-400">Your words:</div>
+                  <div className="text-xs text-cyan-300 italic">"{voice.transcript}"</div>
+                </div>
+              )}
+              {/* Voice confirmation after each action */}
+              <div className="mt-2 text-xs text-teal-300 italic">Voice confirmation after each action — spoken in EN, HI, BN, MR</div>
+            </div>
+          )}
+          {step === 4 && (
+            <div className="p-5 text-white text-center pt-8">
+              <div className="text-6xl mb-3 text-amber-400">⚠️</div>
+              <div className="text-amber-400 font-bold mb-2">Pattern Found</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-gray-300 text-sm">Last 3 diaries said:</div>
+              <div className="text-white font-semibold my-2">"paisa kam mila"</div>
+              <div className="text-green-400 text-sm mt-4">"Shikayat darj karein?"</div>
+              <div className="text-xs text-amber-300 mt-4 text-left px-4">
+                1 thap = haan<br/>
+                2 thap = abhi nahi<br/>
+                3 thap = kabhi mat poochho
+              </div>
+            </div>
+          )}
+        </Phone>
+
+        <div className="space-y-3">
+          <div className="bg-white p-4 rounded-xl shadow-sm border">
+            <div className="text-xs font-bold text-gray-500 mb-2">STEP {step + 1} OF {steps.length}</div>
+            <h3 className="font-bold text-lg">{steps[step]}</h3>
+          </div>
+
+          {step === 1 && <AudioBubble text={c.prompt} lang={LANGS[lang].ttsCode} active={true} />}
+          {step === 3 && <AudioBubble text={c.saved} lang={LANGS[lang].ttsCode} active={true} />}
+          {step === 4 && <AudioBubble text={c.pattern} lang={LANGS[lang].ttsCode} active={true} />}
+
+          {/* B5 transcript review — VoiceStatusCard for capture */}
+          {step === 2 && recording && (
+            <VoiceStatusCard
+              status={voice.status}
+              transcript={voice.transcript}
+              confidence={voice.confidence}
+              label="B5 transcript review"
+            />
+          )}
+
+          <div className="bg-white p-4 rounded-xl shadow-sm border space-y-2">
+            <div className="text-xs font-bold text-gray-500">ACTIONS</div>
+            {step === 0 && (
+              <>
+                <Btn onClick={() => setStep(1)} variant="primary" className="w-full">👂 Hold phone to ear</Btn>
+                <Btn onClick={reset} variant="ghost" className="w-full">Ignore prompt (no penalty)</Btn>
+              </>
+            )}
+            {step === 1 && (
+              <>
+                <Btn onClick={startDiaryRecording} variant="danger" className="w-full">🎤 Start speaking</Btn>
+                <Btn onClick={reset} variant="ghost" className="w-full">Not today (pull phone away)</Btn>
+                {voice.status === 'unsupported' && (
+                  <div className="text-xs text-amber-600 mt-1">Voice not available — button fallback active</div>
+                )}
+              </>
+            )}
+            {step === 2 && (
+              <>
+                <div className="text-xs text-gray-500 text-center py-2">Recording ({recTime}s)</div>
+                <Btn onClick={stopDiaryRecording} variant="primary" className="w-full">Stop + 10s silence → save</Btn>
+              </>
+            )}
+            {step === 3 && (
+              <>
+                <Btn onClick={() => setStep(4)} variant="warning" className="w-full">🗓 Jump to Day 3 (pattern)</Btn>
+                <Btn onClick={reset} variant="ghost" className="w-full">End demo</Btn>
+              </>
+            )}
+            {step === 4 && (
+              <>
+                <Btn onClick={() => alert("Routes to B2 grievance flow with category pre-filled")} variant="primary" className="w-full">1 thap — Yes, file it</Btn>
+                <Btn onClick={reset} variant="ghost" className="w-full">2 thap — Not now</Btn>
+                <Btn onClick={reset} variant="danger" className="w-full">3 thap — Stop asking</Btn>
+              </>
+            )}
+          </div>
+
+          <HapticBubble text={step === 0 ? "Diary pattern: 4 slow pulses" : step === 3 ? "Heartbeat ♩♩ ♩ = saved" : step === 4 ? "Gentle double pulse" : "Silent"} active={step === 0 || step === 3 || step === 4} />
+
+          <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl text-xs text-blue-900">
+            <strong>🛡️ Safety:</strong> 10s silence = auto-save. Ignore prompt = no penalty. Patterns flagged only after 3+ mentions, never auto-published. Encrypted at rest.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// C2: VOICE-ONLY UPI — with voice amount + multilingual confirmations
+// ============================================================
+function C2({ lang }) {
+  const [step, setStep] = useState(0);
+  const [amount, setAmount] = useState('');
+  const [pin, setPin] = useState('');
+  const [undoWindow, setUndoWindow] = useState(0);
+  const [voiceAmountMode, setVoiceAmountMode] = useState(false); // Speak another amount
+  const [spokenAmount, setSpokenAmount] = useState(null);        // parsed from transcript
+  const [confirmCountdown, setConfirmCountdown] = useState(0);   // Auto-close in {n}
+  const [cancelled, setCancelled] = useState(false);
+  const voice = useVoiceCapture(LANGS[lang].ttsCode);
+  const steps = ["Call", "Menu", "Who", "Amount", "Confirm", "PIN", "Done"];
+  const c = COPY.C2[lang];
+
+  // Common fallback amounts when speech decoding fails
+  const FALLBACK_AMOUNTS = [200, 500, 1000, 1500, 2000];
+
+  useEffect(() => {
+    if (step === 1) speak(c.menu, LANGS[lang].ttsCode);
+    if (step === 2) speak(c.who, LANGS[lang].ttsCode);
+    if (step === 3) speak(c.amount, LANGS[lang].ttsCode);
+    if (step === 4) {
+      const dyn = buildC2SpeechCopy(amount || '800');
+      speak(dyn.confirm[lang] || c.confirm.replace(/AMOUNT/g, String(amount || '800')), LANGS[lang].ttsCode);
+      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.C2_amount_set), 3000);
+    }
+    if (step === 5) speak(c.pin, LANGS[lang].ttsCode);
+    if (step === 6) {
+      const dyn = buildC2SpeechCopy(amount || '800');
+      speak(dyn.done[lang] || c.done.replace(/AMOUNT/g, String(amount || '800')), LANGS[lang].ttsCode);
+      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.C2_sent), 4000);
+    }
+    return () => stopSpeak();
+  }, [step, lang]);
+
+  // Undo window countdown on done step
+  useEffect(() => {
+    if (step !== 6) return;
+    setUndoWindow(120);
+    const iv = setInterval(() => setUndoWindow(t => t > 0 ? t - 1 : 0), 1000);
+    return () => clearInterval(iv);
+  }, [step]);
+
+  // Auto-close in {confirmCountdown}s on confirm step
+  useEffect(() => {
+    if (step !== 4) { setConfirmCountdown(0); return; }
+    setConfirmCountdown(30);
+    const iv = setInterval(() => setConfirmCountdown(t => {
+      if (t <= 1) {
+        clearInterval(iv);
+        // Auto-cancel on timeout → play cancelled audio
+        setCancelled(true);
+        const dyn = buildC2SpeechCopy(amount || '800');
+        speak(dyn.cancelled[lang] || "Cancelled.", LANGS[lang].ttsCode);
+        setStep(0); setAmount(''); setPin(''); setVoiceAmountMode(false); voice.reset();
+        return 0;
+      }
+      return t - 1;
+    }), 1000);
+    return () => clearInterval(iv);
+  }, [step]);
+
+  // When voice status changes to 'heard', parse amount and trigger multilingual confirmation
+  useEffect(() => {
+    if (voiceAmountMode && voice.status === 'heard' && voice.transcript) {
+      const parsed = extractAmountFromTranscript(voice.transcript);
+      setSpokenAmount(parsed);
+      if (parsed) {
+        // Confirm spoken amount — in 4 languages
+        buildRepeatedSpeech(STEP_CONFIRMATIONS.C2_custom_amount_heard);
+      }
+    }
+  }, [voice.status, voice.transcript, voiceAmountMode]);
+
+  const reset = () => { setStep(0); setAmount(''); setPin(''); setCancelled(false); setUndoWindow(0); setVoiceAmountMode(false); setSpokenAmount(null); setConfirmCountdown(0); voice.reset(); stopSpeak(); };
+
+  // Confirm spoken amount — sets the amount and goes to confirm
+  const confirmSpokenAmount = () => {
+    if (spokenAmount) {
+      setAmount(String(spokenAmount));
+      setVoiceAmountMode(false);
+      voice.reset();
+      setSpokenAmount(null);
+      setTimeout(() => setStep(4), 300);
+    }
+  };
+
+  return (
+    <div>
+      <Steps steps={steps} current={step} />
+
+      <div className="grid md:grid-cols-[1fr_400px] gap-8 items-start">
+        <Phone>
+          {step === 0 && (
+            <div className="p-5 text-white text-center pt-14">
+              <div className="text-6xl mb-4">📞</div>
+              <div className="text-2xl font-bold mb-1">Dialing...</div>
+              <div className="text-green-400 text-xl font-mono mt-6">*99#</div>
+              <div className="text-gray-400 text-xs mt-8">UPI voice helpline.<br/>Works on 2G.<br/>Zero data required.</div>
+            </div>
+          )}
+          {step === 1 && (
+            <div className="p-5 text-white text-center pt-8">
+              <div className="text-4xl mb-2">🔊</div>
+              <div className="text-sm font-bold text-green-400 mb-3">DIHADI HELPLINE</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-left px-4 space-y-3 text-sm">
+                <div className="flex gap-3 items-center bg-gray-800 p-2 rounded"><span className="text-green-400 font-bold text-xl">1</span><span>Paisa bhejo</span></div>
+                <div className="flex gap-3 items-center bg-gray-800 p-2 rounded"><span className="text-blue-400 font-bold text-xl">2</span><span>Balance dekho</span></div>
+              </div>
+            </div>
+          )}
+          {step === 2 && (
+            <div className="p-5 text-white text-center pt-8">
+              <div className="text-4xl mb-2">🔊</div>
+              <div className="text-sm font-bold mb-3">Kisko bhejna hai?</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-left px-4 space-y-3 text-sm">
+                <div className="flex gap-3 items-center bg-gray-800 p-2 rounded"><span className="text-green-400 font-bold text-xl">1</span><span>🏠 Ghar (Sunita Devi)</span></div>
+                <div className="flex gap-3 items-center bg-gray-800 p-2 rounded"><span className="text-blue-400 font-bold text-xl">2</span><span>Doosra number</span></div>
+              </div>
+            </div>
+          )}
+          {step === 3 && !voiceAmountMode && (
+            <div className="p-5 text-white text-center pt-6">
+              <div className="text-4xl mb-2">🔊</div>
+              <div className="text-sm font-bold mb-3">Kitne rupaye?</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-6xl font-bold text-green-400 my-4 font-mono">
+                {amount || '___'}
+              </div>
+              <div className="text-xs text-gray-400">Dial amount or speak it</div>
+            </div>
+          )}
+          {/* Speak another amount — voice capture screen */}
+          {step === 3 && voiceAmountMode && (
+            <div className="p-5 text-white text-center pt-6">
+              <div className="text-4xl mb-2">{voice.status === 'listening' ? '🔴' : '🎤'}</div>
+              <div className="text-sm font-bold mb-3 text-cyan-400">Speak another amount</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              {voice.status === 'listening' && (
+                <div className="text-red-400 font-bold text-lg mb-2 mic-pulse inline-block px-4 py-2 rounded-full">Listening...</div>
+              )}
+              {voice.transcript && (
+                <div className="mt-2 p-2 bg-gray-800 rounded-lg">
+                  <div className="text-xs text-gray-400">You said:</div>
+                  <div className="text-lg font-semibold text-cyan-300">"{voice.transcript}"</div>
+                </div>
+              )}
+              {spokenAmount !== null && spokenAmount !== undefined && (
+                <div className="mt-3">
+                  <div className="text-xs text-gray-400">Parsed amount:</div>
+                  <div className="text-4xl font-bold text-green-400 font-mono">₹{spokenAmount}</div>
+                  <div className="mt-2 text-xs text-amber-300">Confirm spoken amount?</div>
+                </div>
+              )}
+              {(voice.status === 'unclear' || voice.status === 'error') && !spokenAmount && (
+                <div className="mt-3">
+                  <div className="text-xs text-amber-300 mb-2">Could not understand. Common fallback amounts:</div>
+                  <div className="grid grid-cols-3 gap-2 px-2">
+                    {FALLBACK_AMOUNTS.map(a => (
+                      <div key={a} className="bg-gray-800 border border-gray-600 rounded p-2 text-green-400 font-bold text-center cursor-pointer hover:bg-gray-700 transition" onClick={() => { setAmount(String(a)); setVoiceAmountMode(false); voice.reset(); setTimeout(() => setStep(4), 300); }}>
+                        ₹{a}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {voice.status === 'unsupported' && (
+                <div className="mt-3 text-xs text-amber-300">
+                  Voice not available on this browser.<br/>Use keypad or fallback buttons below.
+                </div>
+              )}
+            </div>
+          )}
+          {step === 4 && (
+            <div className="p-5 text-white text-center pt-6">
+              <div className="text-4xl mb-2">🔊</div>
+              <div className="text-sm font-bold text-amber-400 mb-2">CONFIRM</div>
+              <div className="border-t border-gray-700 mb-2"></div>
+              <div className="text-3xl font-bold text-green-400 mb-1">₹{amount}</div>
+              <div className="text-gray-300 text-sm mb-1">to</div>
+              <div className="text-white font-semibold">Sunita Devi</div>
+              <div className="text-gray-500 text-xs mb-2">🏠 Ghar</div>
+              <div className="border-t border-gray-700 my-2"></div>
+              <div className="text-xs text-amber-300 text-left px-2 leading-relaxed">
+                Correct → enter UPI PIN<br/>Wrong → press *<br/>Auto-close in {confirmCountdown}s → cancel
+              </div>
+              <div className="mt-2 text-red-400 font-mono font-bold text-xl">{confirmCountdown}s</div>
+            </div>
+          )}
+          {step === 5 && (
+            <div className="p-5 text-white text-center pt-6">
+              <div className="text-6xl mb-2">{pin.length === 4 ? '✅' : '🔐'}</div>
+              <div className="text-sm font-bold mb-2 text-cyan-400">Enter UPI PIN</div>
+              <div className="border-t border-gray-700 mb-2"></div>
+              <div className="text-3xl font-mono tracking-widest text-cyan-300 mb-3">
+                {'•'.repeat(pin.length) + '_'.repeat(Math.max(0, 4 - pin.length))}
+              </div>
+              <div className="grid grid-cols-3 gap-2 px-4">
+                {['1','2','3','4','5','6','7','8','9','←','0','OK'].map(k => (
+                  <button key={k} onClick={() => {
+                    if (k === '←') setPin(p => p.slice(0,-1));
+                    else if (k === 'OK') { /* handled below */ }
+                    else if (pin.length < 4) setPin(p => p + k);
+                  }} className="bg-gray-800 hover:bg-gray-700 text-white p-2 rounded font-bold text-sm">{k}</button>
+                ))}
+              </div>
+              <div className="text-xs text-amber-300 mt-3">Four digits required to send.</div>
+            </div>
+          )}
+          {step === 6 && (
+            <div className="p-5 text-white text-center pt-6">
+              <div className="text-7xl mb-2 text-green-400">✓</div>
+              <div className="text-2xl font-bold text-green-400 mb-1">Ho gaya</div>
+              <div className="text-3xl font-bold text-white my-2">₹{amount} sent</div>
+              <div className="text-gray-400 text-xs">to Sunita Devi</div>
+              <div className="border-t border-gray-700 my-2"></div>
+              <div className="text-xs text-gray-400 mb-1">Receipt:</div>
+              <div className="text-2xl font-bold text-amber-400 font-mono">7-4-2-9</div>
+              <div className="mt-2 bg-amber-900/30 border border-amber-700 rounded p-2 text-amber-300 text-xs">
+                3 taps within {undoWindow}s = REVERSE
+              </div>
+              {/* Voice confirmation after each action */}
+              <div className="mt-2 text-xs text-teal-300 italic">Voice confirmation after each action — spoken in EN, HI, BN, MR</div>
+            </div>
+          )}
+        </Phone>
+
+        <div className="space-y-3">
+          <div className="bg-white p-4 rounded-xl shadow-sm border">
+            <div className="text-xs font-bold text-gray-500 mb-2">STEP {step + 1} OF {steps.length}</div>
+            <h3 className="font-bold text-lg">{steps[step]}</h3>
+            {step === 4 && confirmCountdown > 0 && (
+              <div className="text-xs text-red-600 font-mono mt-1">Auto-close in {confirmCountdown}s</div>
+            )}
+          </div>
+
+          {step >= 1 && step <= 5 && <AudioBubble text={(c[['menu','who','amount','confirm','pin'][step-1]] || '').replace(/AMOUNT/g, String(amount || '800'))} lang={LANGS[lang].ttsCode} active={true} />}
+          {step === 6 && <AudioBubble text={c.done} lang={LANGS[lang].ttsCode} active={true} />}
+
+          {/* VoiceStatusCard for spoken amount */}
+          {step === 3 && voiceAmountMode && (
+            <VoiceStatusCard
+              status={voice.status}
+              transcript={voice.transcript}
+              confidence={voice.confidence}
+              label="Speak another amount"
+              onRetry={() => { voice.reset(); setSpokenAmount(null); setTimeout(() => voice.start(), 300); }}
+              onConfirm={spokenAmount ? confirmSpokenAmount : null}
+            />
+          )}
+
+          <div className="bg-white p-4 rounded-xl shadow-sm border space-y-2">
+            <div className="text-xs font-bold text-gray-500">ACTIONS</div>
+            {step === 0 && <Btn onClick={() => setStep(1)} variant="primary" className="w-full">📞 Dial *99#</Btn>}
+            {step === 1 && (
+              <>
+                <Btn onClick={() => setStep(2)} variant="primary" className="w-full">Press 1 — Send money</Btn>
+                <Btn onClick={() => alert("Balance: ₹2,300")} variant="ghost" className="w-full">Press 2 — Balance</Btn>
+              </>
+            )}
+            {step === 2 && (
+              <>
+                <Btn onClick={() => setStep(3)} variant="primary" className="w-full">Press 1 — Ghar (Sunita Devi)</Btn>
+                <Btn onClick={() => alert("Other number flow")} variant="ghost" className="w-full">Press 2 — Other</Btn>
+              </>
+            )}
+            {step === 3 && !voiceAmountMode && (
+              <>
+                <Btn onClick={() => { setAmount('800'); buildRepeatedSpeech(STEP_CONFIRMATIONS.C2_amount_set); setTimeout(() => setStep(4), 300); }} variant="primary" className="w-full">💚 Default: ₹800</Btn>
+                <Btn onClick={() => { setVoiceAmountMode(true); setTimeout(() => voice.start(), 300); }} variant="warning" className="w-full">🎤 Speak another amount</Btn>
+                <div className="border-t border-gray-200 my-1"></div>
+                <div className="grid grid-cols-3 gap-1">
+                  {['1','2','3','4','5','6','7','8','9','*','0','#'].map(k => (
+                    <button key={k} onClick={() => {
+                      if (k === '*') setAmount('');
+                      else if (k === '#') { if (amount) setStep(4); }
+                      else setAmount(a => a + k);
+                    }} className="bg-gray-200 hover:bg-gray-300 p-3 rounded font-bold text-xs">
+                      {k}
+                    </button>
+                  ))}
+                </div>
+                {amount && (
+                  <Btn onClick={() => { buildRepeatedSpeech(STEP_CONFIRMATIONS.C2_amount_set); setTimeout(() => setStep(4), 300); }} variant="primary" className="w-full mt-2">✅ Send ₹{amount}</Btn>
+                )}
+              </>
+            )}
+            {step === 3 && voiceAmountMode && (
+              <>
+                {voice.status === 'idle' && <Btn onClick={() => voice.start()} variant="danger" className="w-full">🎤 Start listening</Btn>}
+                {voice.status === 'listening' && (
+                  <>
+                    <div className="text-xs text-gray-500 text-center py-2 animate-pulse">Listening... take your time, speak clearly</div>
+                    <Btn onClick={() => { voice.stop(); }} variant="dark" className="w-full">🛑 Done speaking</Btn>
+                  </>
+                )}
+                {spokenAmount && (
+                  <Btn onClick={confirmSpokenAmount} variant="primary" className="w-full">✓ Confirm spoken amount: ₹{spokenAmount}</Btn>
+                )}
+                {(voice.status === 'unclear' || voice.status === 'error' || voice.status === 'unsupported') && (
+                  <>
+                    {/* Common fallback amounts */}
+                    <div className="text-xs text-gray-600 font-semibold mt-1">Common fallback amounts:</div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {FALLBACK_AMOUNTS.map(a => (
+                        <Btn key={a} onClick={() => { setAmount(String(a)); setVoiceAmountMode(false); voice.reset(); buildRepeatedSpeech(STEP_CONFIRMATIONS.C2_amount_set); setTimeout(() => setStep(4), 300); }} variant="ghost" className="text-center">₹{a}</Btn>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <Btn onClick={() => { setVoiceAmountMode(false); voice.reset(); setSpokenAmount(null); }} variant="ghost" className="w-full">← Back to keypad</Btn>
+              </>
+            )}
+            {step === 4 && (
+              <>
+                <Btn onClick={() => { setPin(''); setStep(5); }} variant="primary" className="w-full">✓ Correct — enter UPI PIN</Btn>
+                <Btn onClick={() => { setAmount(''); setVoiceAmountMode(false); voice.reset(); setSpokenAmount(null); setStep(3); }} variant="warning" className="w-full">* — Wrong, redo amount</Btn>
+                <Btn onClick={reset} variant="ghost" className="w-full">Auto-close in {confirmCountdown}s = cancel</Btn>
+              </>
+            )}
+            {step === 5 && (
+              <>
+                <div className="text-xs text-gray-600">PIN digits entered: {pin.length}/4</div>
+                <Btn onClick={() => { if (pin.length === 4) setStep(6); }} variant="primary" disabled={pin.length !== 4} className="w-full">✓ Send ₹{amount || '800'}</Btn>
+                <Btn onClick={() => setPin('')} variant="ghost" className="w-full">Clear PIN</Btn>
+                <Btn onClick={reset} variant="dark" className="w-full">✗ Cancel</Btn>
+              </>
+            )}
+            {step === 6 && (
+              <>
+                <Btn onClick={() => alert(`Reversed! ₹${amount} back in your account.`)} variant="danger" className="w-full" disabled={undoWindow === 0}>
+                  🔁 3 taps — REVERSE ({undoWindow}s left)
+                </Btn>
+                <Btn onClick={reset} variant="dark" className="w-full">Done</Btn>
+              </>
+            )}
+          </div>
+
+          <HapticBubble text={step === 6 ? "Heartbeat ♩♩ ♩ = success" : step >= 1 && step <= 5 ? "Single buzz on each key press" : "Silent"} active={step === 6} />
+
+          <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl text-xs text-blue-900">
+            <strong>🛡️ Safety:</strong> Auto-close in {step === 4 ? confirmCountdown + 's' : '30s'} inaction = auto-cancel. Wrong amount = press * to redo. 2-min undo window after send. All audio in worker's language. IVR loops on wrong input — never dead-ends.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// C3r: SELF-TAUGHT AUTO-REMIT
+// ============================================================
+function C3r({ lang }) {
+  const [step, setStep] = useState(0);
+  const [countdown, setCountdown] = useState(0);
+  const [resultType, setResultType] = useState('sent'); // 'sent' | 'cancelled'
+  const steps = ["History", "Offer", "Accepted", "Friday 7PM", "Result"];
+  const c = COPY.C3r[lang];
+
+  useEffect(() => {
+    if (step === 1) speak(c.offer, LANGS[lang].ttsCode);
+    if (step === 2) speak(c.accepted, LANGS[lang].ttsCode);
+    if (step === 3) speak(c.weekly, LANGS[lang].ttsCode);
+    return () => stopSpeak();
+  }, [step, lang]);
+
+  useEffect(() => {
+    if (step !== 3) return;
+    setCountdown(30);
+    const iv = setInterval(() => setCountdown(t => {
+      if (t <= 1) {
+        clearInterval(iv);
+        // Auto-cancel at timeout — No tap = cancel
+        stopSpeak();
+        setResultType('cancelled');
+        speak(c.skipped, LANGS[lang].ttsCode);
+        setStep(4);
+        return 0;
+      }
+      return t - 1;
+    }), 1000);
+    return () => clearInterval(iv);
+  }, [step]);
+
+  const approve = () => {
+    stopSpeak();
+    cbcStore.push('cbc.c3r.history', { amount: 800, recipient: 'Sunita Devi', day: 'Friday' }, 26);
+    setResultType('sent');
+    speak(c.sent, LANGS[lang].ttsCode);
+    setStep(4);
+  };
+  const skip = () => {
+    stopSpeak();
+    cbcStore.push('cbc.c3r.history', { amount: 0, recipient: 'Sunita Devi', day: 'Friday', skipped: true }, 26);
+    setResultType('cancelled');
+    speak(c.skipped, LANGS[lang].ttsCode);
+    setStep(4);
+  };
+
+  const reset = () => { setStep(0); setCountdown(0); setResultType('sent'); stopSpeak(); };
+
+  // Seed 3 demo weeks, then append any persisted prior sends from localStorage
+  // so pattern-detection remains stable across reloads / incognito privacy.
+  const seed = [
+    { week: 'Week 1', amt: 800, done: true },
+    { week: 'Week 2', amt: 800, done: true },
+    { week: 'Week 3', amt: 800, done: true },
+  ];
+  const persisted = cbcStore.get('cbc.c3r.history', []).filter(h => !h.skipped);
+  const weeks = seed.concat(persisted.slice(-6).map((h, i) => ({
+    week: `Week ${seed.length + i + 1}`,
+    amt: h.amount || 800,
+    done: true,
+  })));
+
+  return (
+    <div>
+      <Steps steps={steps} current={step} />
+
+      <div className="grid md:grid-cols-[1fr_400px] gap-8 items-start">
+        <Phone vibrating={step === 3}>
+          {step === 0 && (
+            <div className="p-5 text-white pt-8">
+              <div className="text-center mb-4">
+                <div className="text-4xl mb-2">📊</div>
+                <div className="font-bold">Your Transfer History</div>
+              </div>
+              <div className="border-t border-gray-700 my-3"></div>
+              <div className="space-y-2">
+                {weeks.map((w, i) => (
+                  <div key={i} className="flex justify-between items-center bg-gray-800 p-2 rounded">
+                    <div>
+                      <div className="text-xs text-gray-400">{w.week} · Friday</div>
+                      <div className="text-xs text-gray-300">🏠 Sunita Devi</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-green-400 font-bold">₹{w.amt}</div>
+                      <div className="text-green-400 text-xs">✓</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 bg-amber-900/30 border border-amber-700 rounded p-2 text-amber-300 text-xs">
+                💡 System detected pattern: same amount, same recipient, same day.
+              </div>
+            </div>
+          )}
+          {step === 1 && (
+            <div className="p-5 text-white text-center pt-8">
+              <div className="text-6xl mb-3">🤔</div>
+              <div className="text-lg font-bold text-amber-400 mb-3">Auto-send offer</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-sm text-gray-300 italic leading-relaxed px-2">"{c.offer}"</div>
+              <div className="mt-6 text-xs text-gray-500">
+                1 thap = haan, har shukravar<br/>
+                2 thap = nahi, manual hi rahega
+              </div>
+            </div>
+          )}
+          {step === 2 && (
+            <div className="p-5 text-white text-center pt-10">
+              <div className="text-7xl mb-3 text-green-400">✓</div>
+              <div className="text-xl font-bold text-green-400 mb-3">Auto-Send ON</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-sm text-gray-300 italic px-2">"{c.accepted}"</div>
+              <div className="mt-6 bg-teal-900/30 border border-teal-700 rounded p-2 text-teal-300 text-xs">
+                🔒 Next: Friday 7 PM reminder
+              </div>
+            </div>
+          )}
+          {step === 3 && (
+            <div className="p-5 text-white text-center pt-6">
+              <div className="text-5xl mb-2 vibrate-anim inline-block">📳</div>
+              <div className="text-lg font-bold text-amber-400 mb-1">Friday 7:00 PM</div>
+              <div className="text-xs text-gray-400 mb-3">Weekly check-in</div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-2xl font-bold text-white">₹800</div>
+              <div className="text-gray-400 text-sm">to 🏠 Sunita Devi</div>
+              <div className="border-t border-gray-700 my-3"></div>
+              <div className="text-3xl font-bold text-red-400 font-mono">{countdown}s</div>
+              <div className="text-xs text-amber-300 mt-2">
+                1 tap = approve &amp; send<br/>
+                No tap = cancel (timer runs out → auto-cancel)
+              </div>
+            </div>
+          )}
+          {step === 4 && (
+            <div className="p-5 text-white text-center pt-10">
+              <div className={`text-7xl mb-3 ${resultType === 'sent' ? 'text-green-400' : 'text-amber-400'}`}>{resultType === 'sent' ? '✓' : '⏸'}</div>
+              <div className={`text-xl font-bold mb-3 ${resultType === 'sent' ? 'text-green-400' : 'text-amber-400'}`}>
+                {resultType === 'sent' ? 'Sent ₹800 home' : 'Cancelled — money not sent'}
+              </div>
+              <div className="border-t border-gray-700 mb-3"></div>
+              <div className="text-xs text-gray-400 mt-4 italic px-4">
+                "{resultType === 'sent' ? c.sent : c.skipped}"
+              </div>
+            </div>
+          )}
+        </Phone>
+
+        <div className="space-y-3">
+          <div className="bg-white p-4 rounded-xl shadow-sm border">
+            <div className="text-xs font-bold text-gray-500 mb-2">STEP {step + 1} OF {steps.length}</div>
+            <h3 className="font-bold text-lg">{steps[step]}</h3>
+          </div>
+
+          {step === 1 && <AudioBubble text={c.offer} lang={LANGS[lang].ttsCode} active={true} />}
+          {step === 2 && <AudioBubble text={c.accepted} lang={LANGS[lang].ttsCode} active={true} />}
+          {step === 3 && <AudioBubble text={c.weekly} lang={LANGS[lang].ttsCode} active={true} />}
+
+          <div className="bg-white p-4 rounded-xl shadow-sm border space-y-2">
+            <div className="text-xs font-bold text-gray-500">ACTIONS</div>
+            {step === 0 && <Btn onClick={() => setStep(1)} variant="primary" className="w-full">System detects pattern → offer auto-send</Btn>}
+            {step === 1 && (
+              <>
+                <Btn onClick={() => setStep(2)} variant="primary" className="w-full">1 thap — Haan, auto-send</Btn>
+                <Btn onClick={reset} variant="ghost" className="w-full">2 thap — Nahi, manual only</Btn>
+              </>
+            )}
+            {step === 2 && <Btn onClick={() => setStep(3)} variant="primary" className="w-full">⏩ Skip to Friday 7 PM</Btn>}
+            {step === 3 && (
+              <>
+                <Btn onClick={approve} variant="primary" className="w-full" disabled={countdown === 0}>
+                  👆 1 THAP — Approve & send
+                </Btn>
+                <Btn onClick={skip} variant="warning" className="w-full">
+                  Do nothing ({countdown}s) = cancel
+                </Btn>
+                <div className="text-xs text-gray-500 text-center pt-2">
+                  Dead Man's Switch: inaction = no transaction
+                </div>
+              </>
+            )}
+            {step === 4 && <Btn onClick={reset} variant="dark" className="w-full">🔄 Reset Demo</Btn>}
+          </div>
+
+          <HapticBubble text={step === 3 ? "Slow urgent pulse every 5s" : step === 4 ? "Heartbeat = sent, or single long = cancelled" : step === 2 ? "3 confirming buzzes" : "Silent"} active={step === 3 || step === 4 || step === 2} />
+
+          <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl text-xs text-blue-900">
+            <strong>🛡️ Safety:</strong> Inaction = cancellation. NEVER auto-sends without explicit weekly tap. After 4 weeks of no approvals, auto-disables. 5 rapid shakes anytime = turn off forever.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// MAIN APP
+// ============================================================
+const PARADIGMS = [
+  { id: 'A2', name: 'Missed Call Payslip', category: 'Wage Slip', color: 'amber', Component: A2, desc: "Missed call → callback → IVR reads today's wage. Works on any phone ever made." },
+  { id: 'A3', name: 'Shake-to-Speak', category: 'Wage Slip', color: 'amber', Component: A3, desc: "3 shakes → phone speaks wage. Zero unlock. Zero screen." },
+  { id: 'B2', name: 'Missed Call Grievance', category: 'Grievance', color: 'red', Component: B2, desc: "Callback IVR with sound-scene categories — preliterate filing." },
+  { id: 'B5', name: 'Voice Diary', category: 'Grievance', color: 'red', Component: B5, desc: "Evening prompt → hold to ear → daily journal. Longitudinal evidence." },
+  { id: 'C2', name: 'Voice-Only UPI', category: 'Send Money', color: 'green', Component: C2, desc: "IVR-based UPI transfer. Works on 2G. Keypad PIN." },
+  { id: 'C3r', name: 'Self-Taught Auto-Remit', category: 'Send Money', color: 'green', Component: C3r, desc: "System learns weekly pattern → offers automation → tap to approve." },
+];
+
+function App() {
+  const [paradigm, setParadigm] = useState('A2');
+  const [lang, setLang] = useState('hi');
+  const P = PARADIGMS.find(p => p.id === paradigm);
+
+  return (
+    <div className="min-h-screen">
+      <header className="bg-white border-b sticky top-0 z-10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Wage Worker Interaction Prototypes</h1>
+              <p className="text-xs text-gray-500">6 paradigms · 4 languages · Interactive flows for evaluator testing</p>
+            </div>
+            <div className="flex gap-2">
+              {Object.values(LANGS).map(l => (
+                <button
+                  key={l.code}
+                  onClick={() => setLang(l.code)}
+                  className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+                    lang === l.code
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}>
+                  {l.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-6 pb-3 flex gap-2 flex-wrap">
+          {PARADIGMS.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setParadigm(p.id)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition border-2 ${
+                paradigm === p.id
+                  ? 'bg-blue-600 text-white border-blue-700'
+                  : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+              }`}>
+              <span className="font-mono text-xs opacity-70">{p.id}</span> · {p.name}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        <div className="mb-6">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+              P.color === 'amber' ? 'bg-amber-100 text-amber-800' :
+              P.color === 'red' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+            }`}>{P.category}</span>
+            <h2 className="text-2xl font-bold">{P.id} — {P.name}</h2>
+          </div>
+          <p className="text-gray-600 mt-2 max-w-3xl">{P.desc}</p>
+          <div className="mt-2 text-xs text-gray-500">
+            Currently showing: <strong>{LANGS[lang].english}</strong> ({LANGS[lang].name}) · Click "▶ Play audio" to hear the actual TTS in the worker's language.
+          </div>
+        </div>
+
+        <P.Component lang={lang} />
+
+        <div className="mt-8">
+          <RuntimeDiagnosticsPanel lang={lang} />
+        </div>
+
+        <footer className="mt-16 border-t pt-6 text-xs text-gray-500 flex justify-between flex-wrap gap-2">
+          <div>Use language buttons at top to switch context · Reset any demo via its dark "Reset" button</div>
+          <div>Built for evaluators to verify interaction logic across linguistic and cultural contexts · &lt;60s learning target</div>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

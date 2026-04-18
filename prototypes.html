@@ -75,23 +75,23 @@ const LANGS = {
 const COPY = {
   A2: {
     en: {
-      wage: "Today, April 14, your wage of eight hundred rupees is recorded. Contractor: Rajesh Kumar. Task: Tile fitting. Press 1 to repeat, 2 for weekly summary, 9 for grievance.",
-      weekly: "You worked 5 days this week. Total wage: four thousand four hundred rupees.",
+      wage: "Today, April 14, your wage of eight hundred rupees is recorded. Contractor: Rajesh Kumar. Task: Tile fitting. Volume up to repeat. Volume down for weekly total. Hold volume up for grievance.",
+      weekly: "You worked 5 days this week. Total wage: four thousand four hundred rupees. Volume up to repeat. Stay silent to hang up.",
       end: "Call ending. Call back to listen again."
     },
     hi: {
-      wage: "आज, 14 अप्रैल, आपकी दिहाड़ी आठ सौ रुपये दर्ज है। ठेकेदार: राजेश कुमार। काम: टाइल फिटिंग। दोबारा सुनने के लिए एक दबाओ, हफ्ते का हिसाब सुनने के लिए दो, शिकायत के लिए नौ।",
-      weekly: "इस हफ्ते पाँच दिन काम किया। कुल दिहाड़ी: चार हज़ार चार सौ रुपये।",
+      wage: "आज, 14 अप्रैल, आपकी दिहाड़ी आठ सौ रुपये दर्ज है। ठेकेदार: राजेश कुमार। काम: टाइल फिटिंग। दोबारा सुनने के लिए आवाज़ ऊँची वाला बटन दबाओ। हफ्ते का हिसाब सुनने के लिए आवाज़ कम करने वाला बटन। शिकायत के लिए आवाज़ ऊँची वाला बटन दबाकर रखो।",
+      weekly: "इस हफ्ते पाँच दिन काम किया। कुल दिहाड़ी: चार हज़ार चार सौ रुपये। दोबारा सुनने के लिए आवाज़ ऊँची वाला बटन। चुप रहोगे तो फ़ोन बंद।",
       end: "कॉल बंद हो रहा है। फिर सुनने के लिए दोबारा कॉल करो।"
     },
     bn: {
-      wage: "আজ, চোদ্দই এপ্রিল, আপনার মজুরি আটশো টাকা লেখা হয়েছে। ঠিকাদার: রাজেশ কুমার। কাজ: টাইল ফিটিং। আবার শুনতে এক টিপুন, সপ্তাহের হিসাবের জন্য দুই, অভিযোগের জন্য নয়।",
-      weekly: "এই সপ্তাহে পাঁচ দিন কাজ করেছেন। মোট মজুরি: চার হাজার চারশো টাকা।",
+      wage: "আজ, চোদ্দই এপ্রিল, আপনার মজুরি আটশো টাকা লেখা হয়েছে। ঠিকাদার: রাজেশ কুমার। কাজ: টাইল ফিটিং। আবার শুনতে ভলিউম বাড়ানোর বোতাম টিপুন। সপ্তাহের হিসাবের জন্য ভলিউম কমানোর বোতাম। অভিযোগের জন্য ভলিউম বাড়ানোর বোতাম চেপে রাখুন।",
+      weekly: "এই সপ্তাহে পাঁচ দিন কাজ করেছেন। মোট মজুরি: চার হাজার চারশো টাকা। আবার শুনতে ভলিউম বাড়ানোর বোতাম। চুপ থাকলে ফোন বন্ধ।",
       end: "কল শেষ হচ্ছে। আবার শুনতে ফোন করুন।"
     },
     mr: {
-      wage: "आज, चौदा एप्रिल, तुमची दिहाडी आठशे रुपये नोंदवली आहे. ठेकेदार: राजेश कुमार. काम: टाइल फिटिंग. परत ऐकायला एक दाबा, आठवड्याच्या हिशोबासाठी दोन, तक्रारीसाठी नऊ.",
-      weekly: "या आठवड्यात पाच दिवस काम केले. एकूण दिहाडी: चार हजार चारशे रुपये.",
+      wage: "आज, चौदा एप्रिल, तुमची दिहाडी आठशे रुपये नोंदवली आहे. ठेकेदार: राजेश कुमार. काम: टाइल फिटिंग. परत ऐकायला आवाज वाढवण्याचं बटण दाबा. आठवड्याच्या हिशोबासाठी आवाज कमी करण्याचं बटण. तक्रारीसाठी आवाज वाढवण्याचं बटण दाबून धरा.",
+      weekly: "या आठवड्यात पाच दिवस काम केले. एकूण दिहाडी: चार हजार चारशे रुपये. परत ऐकायला आवाज वाढवण्याचं बटण. शांत राहाल तर फोन बंद.",
       end: "कॉल बंद होतोय. परत ऐकायला पुन्हा कॉल करा."
     }
   },
@@ -362,28 +362,41 @@ function googleTtsUrls(text, lang) {
   );
 }
 
-function playAudioUrl(url) {
+function playAudioUrl(url, token) {
   return new Promise((resolve, reject) => {
+    if (token != null && token !== speechState.token) { resolve(); return; }
     const audio = new Audio(url);
+    // Stop any previously playing audio before replacing activeAudio
+    if (speechState.activeAudio && speechState.activeAudio !== audio) {
+      try { speechState.activeAudio.pause(); speechState.activeAudio.src = ''; } catch (e) {}
+    }
     speechState.activeAudio = audio;
-    audio.onended = () => resolve();
-    audio.onerror = () => reject(new Error('audio error'));
+    audio.onended = () => {
+      if (speechState.activeAudio === audio) speechState.activeAudio = null;
+      resolve();
+    };
+    audio.onerror = () => {
+      if (speechState.activeAudio === audio) speechState.activeAudio = null;
+      reject(new Error('audio error'));
+    };
     audio.play().catch(reject);
   });
 }
 
-async function googleTranslateSpeak(text, langCode) {
+async function googleTranslateSpeak(text, langCode, token) {
   const urls = googleTtsUrls(text, langCode);
   updateDiagnostics({ ttsStatus: "playing", lastTtsError: "using Google Translate TTS fallback" });
   for (const url of urls) {
-    await playAudioUrl(url);
+    if (token != null && token !== speechState.token) return;
+    await playAudioUrl(url, token);
   }
   updateDiagnostics({ ttsStatus: "ready" });
 }
 
-function browserSynthesisSpeak(text, langCode) {
+function browserSynthesisSpeak(text, langCode, token) {
   return new Promise(resolve => {
     if (!window.speechSynthesis) { resolve(); return; }
+    if (token != null && token !== speechState.token) { resolve(); return; }
     try {
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = langCode || 'en-IN';
@@ -398,16 +411,17 @@ function browserSynthesisSpeak(text, langCode) {
   });
 }
 
-async function fallbackNativeSpeak(text, langCode) {
+async function fallbackNativeSpeak(text, langCode, token) {
   // Tier 1: Google Translate TTS — has real hi/bn/mr/en voices and works from file://
   try {
-    await googleTranslateSpeak(text, langCode);
+    await googleTranslateSpeak(text, langCode, token);
     return;
   } catch (err) {
     updateDiagnostics({ lastTtsError: "Google TTS failed, trying browser synthesis." });
   }
+  if (token != null && token !== speechState.token) return;
   // Tier 2: browser speechSynthesis (may not support non-English on Windows)
-  await browserSynthesisSpeak(text, langCode);
+  await browserSynthesisSpeak(text, langCode, token);
 }
 
 async function playQueuedAudio(item, token) {
@@ -418,12 +432,16 @@ async function playQueuedAudio(item, token) {
   } catch (err) {
     // Cloud TTS unavailable (no server, no API key, offline) — fall back to browser speech.
     if (token !== speechState.token) return;
-    return fallbackNativeSpeak(item.text, item.lang);
+    return fallbackNativeSpeak(item.text, item.lang, token);
   }
   if (token !== speechState.token) return;
 
   const audioUrl = URL.createObjectURL(blob);
-  await new Promise((resolve, reject) => {
+  await new Promise((resolve) => {
+    // Interrupt any previously playing audio before replacing
+    if (speechState.activeAudio) {
+      try { speechState.activeAudio.pause(); speechState.activeAudio.src = ''; } catch (e) {}
+    }
     const audio = new Audio(audioUrl);
     speechState.activeAudio = audio;
     updateDiagnostics({ ttsStatus: "playing" });
@@ -437,19 +455,33 @@ async function playQueuedAudio(item, token) {
       URL.revokeObjectURL(audioUrl);
       if (speechState.activeAudio === audio) speechState.activeAudio = null;
       updateDiagnostics({ ttsStatus: "error", lastTtsError: "Audio playback failed — falling back to browser TTS." });
-      fallbackNativeSpeak(item.text, item.lang).then(resolve);
+      if (token !== speechState.token) { resolve(); return; }
+      fallbackNativeSpeak(item.text, item.lang, token).then(resolve);
     };
     audio.play().catch(error => {
       URL.revokeObjectURL(audioUrl);
       if (speechState.activeAudio === audio) speechState.activeAudio = null;
       updateDiagnostics({ ttsStatus: "error", lastTtsError: (error.message || "Autoplay blocked") + " — falling back to browser TTS." });
-      fallbackNativeSpeak(item.text, item.lang).then(resolve);
+      if (token !== speechState.token) { resolve(); return; }
+      fallbackNativeSpeak(item.text, item.lang, token).then(resolve);
     });
   });
 }
 
 function queueSpeechItems(items) {
+  // Bumping the token invalidates any in-flight queue; also halt any currently
+  // playing audio so new languages/steps don't overlap the previous prompt.
   const token = ++speechState.token;
+  if (speechState.activeAudio) {
+    try {
+      speechState.activeAudio.pause();
+      speechState.activeAudio.onended = null;
+      speechState.activeAudio.onerror = null;
+      speechState.activeAudio.src = '';
+    } catch (e) {}
+    speechState.activeAudio = null;
+  }
+  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
   const filtered = (items || []).filter(item => item && item.text);
   return filtered.reduce(
     (promise, item) => promise.then(() => playQueuedAudio(item, token)).catch(() => {}),
@@ -515,11 +547,15 @@ function stopSpeak() {
     try {
       speechState.activeAudio.pause();
       speechState.activeAudio.currentTime = 0;
+      speechState.activeAudio.onended = null;
+      speechState.activeAudio.onerror = null;
+      speechState.activeAudio.src = '';
     } catch (error) {
       // no-op
     }
     speechState.activeAudio = null;
   }
+  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
   updateDiagnostics({ ttsStatus: "idle" });
 }
 
@@ -637,113 +673,117 @@ const cbcStore = (() => {
 // --- Shared useVoiceCapture hook ---
 // Wraps SpeechRecognition for mic-based capture with transcript
 // Auto-restarts if recognition ends prematurely (e.g. mic permission dialog)
+// Module-level singleton SpeechRecognition instance. Creating a new
+// SpeechRecognition on every voice.start() (which previously happened on each
+// mount + each user click) can cause Chrome to re-prompt for microphone
+// access, especially when switching between prototypes. Reusing ONE instance
+// across the entire app lifetime keeps the mic permission prompt to a single
+// one-time ask per origin.
+let __sharedRecognition = null;
+function getSharedRecognition() {
+  if (__sharedRecognition) return __sharedRecognition;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const r = new SR();
+  r.interimResults = true;
+  r.maxAlternatives = 5;
+  r.continuous = true;
+  __sharedRecognition = r;
+  return r;
+}
+
 function useVoiceCapture(langCode) {
-  const [status, setStatus] = React.useState('idle'); // idle | listening | heard | confirmed | unclear | error | unsupported
+  const [status, setStatus] = React.useState('idle'); // idle | listening | heard | confirmed | unclear | error | unsupported | requesting
   const [transcript, setTranscript] = React.useState('');
   const [isFinal, setIsFinal] = React.useState(false);
   const [confidence, setConfidence] = React.useState(0);
-  const recognitionRef = React.useRef(null);
   const wantListeningRef = React.useRef(false); // true = user wants mic on
   const startTimeRef = React.useRef(0);         // tracks when we started
   const restartCountRef = React.useRef(0);      // prevent infinite restart loops
 
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
   const start = React.useCallback(() => {
-    if (!SpeechRecognition) { setStatus('unsupported'); return; }
+    const recognition = getSharedRecognition();
+    if (!recognition) { setStatus('unsupported'); return; }
+    setStatus('requesting');
     wantListeningRef.current = true;
     restartCountRef.current = 0;
-    try {
-      // If there's an existing instance, stop it first
-      if (recognitionRef.current) {
-        try { recognitionRef.current.abort(); } catch(e) {}
-      }
-      const recognition = new SpeechRecognition();
-      recognition.lang = langCode || 'hi-IN';
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 5; // try multiple candidates — helps code-switching / dialects
-      recognition.continuous = true;
+    recognition.lang = langCode || 'hi-IN';
 
-      recognition.onstart = () => {
-        startTimeRef.current = Date.now();
-        setStatus('listening');
-      };
-      recognition.onresult = (event) => {
-        // Concatenate the top alternative for display, but also collect all
-        // alternatives so downstream parsers (e.g. amount extraction) can
-        // try each candidate — helps when the locked STT language mis-hears
-        // code-switched or regional-dialect speech.
-        let fullTranscript = '';
-        const allAlts = [];
-        let finalResult = false;
-        let bestConf = 0;
-        for (let i = 0; i < event.results.length; i++) {
-          const result = event.results[i];
-          fullTranscript += result[0].transcript;
-          for (let a = 0; a < result.length; a++) {
-            allAlts.push(result[a].transcript);
-            bestConf = Math.max(bestConf, result[a].confidence || 0);
+    recognition.onstart = () => {
+      startTimeRef.current = Date.now();
+      setStatus('listening');
+    };
+    recognition.onresult = (event) => {
+      let fullTranscript = '';
+      const allAlts = [];
+      let finalResult = false;
+      let bestConf = 0;
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        fullTranscript += result[0].transcript;
+        for (let a = 0; a < result.length; a++) {
+          allAlts.push(result[a].transcript);
+          bestConf = Math.max(bestConf, result[a].confidence || 0);
+        }
+        if (result.isFinal) finalResult = true;
+      }
+      setTranscript(fullTranscript);
+      window.__CBC_LAST_ALTS = allAlts;
+      setIsFinal(finalResult);
+      setConfidence(bestConf);
+      if (finalResult) {
+        setStatus(bestConf > 0.5 ? 'heard' : 'unclear');
+      }
+    };
+    recognition.onerror = (e) => {
+      const elapsed = Date.now() - startTimeRef.current;
+      if (e.error === 'no-speech' && elapsed < 5000 && wantListeningRef.current) {
+        return;
+      }
+      if (e.error === 'aborted') return;
+      if (e.error === 'no-speech') setStatus('unclear');
+      else if (e.error === 'not-allowed') setStatus('error');
+      else setStatus('error');
+    };
+    recognition.onend = () => {
+      if (wantListeningRef.current && restartCountRef.current < 10) {
+        restartCountRef.current++;
+        setTimeout(() => {
+          if (wantListeningRef.current) {
+            try { recognition.start(); } catch(e) { setStatus('error'); }
           }
-          if (result.isFinal) finalResult = true;
-        }
-        setTranscript(fullTranscript);
-        window.__CBC_LAST_ALTS = allAlts;
-        setIsFinal(finalResult);
-        setConfidence(bestConf);
-        if (finalResult) {
-          setStatus(bestConf > 0.5 ? 'heard' : 'unclear');
-        }
-      };
-      recognition.onerror = (e) => {
-        const elapsed = Date.now() - startTimeRef.current;
-        // Ignore no-speech errors in the first 5 seconds (grace period for mic permission)
-        if (e.error === 'no-speech' && elapsed < 5000 && wantListeningRef.current) {
-          // Don't set error status — onend will auto-restart
-          return;
-        }
-        if (e.error === 'aborted') return; // we aborted it ourselves
-        if (e.error === 'no-speech') setStatus('unclear');
-        else if (e.error === 'not-allowed') setStatus('error');
-        else setStatus('error');
-      };
-      recognition.onend = () => {
-        // Auto-restart if user still wants to listen
-        if (wantListeningRef.current && restartCountRef.current < 10) {
-          restartCountRef.current++;
-          setTimeout(() => {
-            if (wantListeningRef.current) {
-              try { recognition.start(); } catch(e) {
-                setStatus('error');
-              }
-            }
-          }, 300);
-        } else if (wantListeningRef.current) {
-          // Exhausted restart budget — surface error instead of silently going idle
-          wantListeningRef.current = false;
-          setStatus('error');
-        }
-      };
-      recognitionRef.current = recognition;
-      setTranscript('');
-      setIsFinal(false);
-      setConfidence(0);
+        }, 300);
+      } else if (wantListeningRef.current) {
+        wantListeningRef.current = false;
+        setStatus('error');
+      }
+    };
+
+    setTranscript('');
+    setIsFinal(false);
+    setConfidence(0);
+    try {
       recognition.start();
     } catch (e) {
-      setStatus('error');
+      // "InvalidStateError: already started" — stop and restart once.
+      try { recognition.stop(); } catch (e2) {}
+      setTimeout(() => {
+        try { recognition.start(); } catch (e3) { setStatus('error'); }
+      }, 200);
     }
-  }, [langCode, SpeechRecognition]);
+  }, [langCode]);
 
   const stop = React.useCallback(() => {
     wantListeningRef.current = false;
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch(e) {}
+    if (__sharedRecognition) {
+      try { __sharedRecognition.stop(); } catch(e) {}
     }
   }, []);
 
   const reset = React.useCallback(() => {
     wantListeningRef.current = false;
-    if (recognitionRef.current) {
-      try { recognitionRef.current.abort(); } catch(e) {}
+    if (__sharedRecognition) {
+      try { __sharedRecognition.abort(); } catch(e) {}
     }
     setStatus('idle');
     setTranscript('');
@@ -751,7 +791,246 @@ function useVoiceCapture(langCode) {
     setConfidence(0);
   }, []);
 
+  // When a component using this hook unmounts (e.g. user switches
+  // prototype), release the shared recognition so the next component
+  // starts from a clean state without stale handlers firing into
+  // un-mounted React trees.
+  React.useEffect(() => {
+    return () => {
+      wantListeningRef.current = false;
+      if (__sharedRecognition) {
+        try { __sharedRecognition.abort(); } catch (e) {}
+      }
+    };
+  }, []);
+
   return { status, transcript, isFinal, confidence, start, stop, reset };
+}
+
+// --- useAudioCapture hook ---
+// MediaRecorder-based capture that posts to /api/stt (OpenAI Whisper) for
+// reliable Indic transcription. Unlike SpeechRecognition, the underlying
+// MediaStream is held across start/stop, so the browser mic prompt fires at
+// most once per page load. Also exposes a blob URL so the user can play
+// their own recording back — proof that something was captured.
+let __sharedMediaStream = null;
+async function getSharedMediaStream() {
+  if (__sharedMediaStream && __sharedMediaStream.active) return __sharedMediaStream;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error('getUserMedia unsupported');
+  }
+  __sharedMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  return __sharedMediaStream;
+}
+
+function useAudioCapture(langCode) {
+  // status: idle | requesting | recording | processing | done | empty | error | unsupported
+  const [status, setStatus] = React.useState('idle');
+  const [transcript, setTranscript] = React.useState('');
+  const [blobUrl, setBlobUrl] = React.useState('');
+  const [errorMessage, setErrorMessage] = React.useState('');
+  const recorderRef = React.useRef(null);
+  const chunksRef = React.useRef([]);
+  const blobUrlRef = React.useRef('');
+  const mimeRef = React.useRef('audio/webm');
+  const vadRef = React.useRef({
+    ctx: null, analyser: null, source: null, raf: 0,
+    lastVoiceAt: 0, startedAt: 0, level: 0, hasSpeech: false,
+  });
+
+  // Voice activity detector (VAD): lets callers ask "was there any audio in
+  // the last N seconds?" without needing a live STT transcript.
+  const lastVoiceAtRef = React.useRef(0);
+  const hasSpeechRef = React.useRef(false);
+
+  const stopVad = React.useCallback(() => {
+    const v = vadRef.current;
+    if (v.raf) { cancelAnimationFrame(v.raf); v.raf = 0; }
+    if (v.source) { try { v.source.disconnect(); } catch (e) {} v.source = null; }
+    if (v.analyser) { try { v.analyser.disconnect(); } catch (e) {} v.analyser = null; }
+    if (v.ctx) { try { v.ctx.close(); } catch (e) {} v.ctx = null; }
+  }, []);
+
+  const startVad = React.useCallback((stream) => {
+    stopVad();
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    try {
+      const ctx = new AudioCtx();
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      vadRef.current.ctx = ctx;
+      vadRef.current.source = source;
+      vadRef.current.analyser = analyser;
+      vadRef.current.startedAt = Date.now();
+      vadRef.current.lastVoiceAt = Date.now();
+      vadRef.current.hasSpeech = false;
+      hasSpeechRef.current = false;
+      lastVoiceAtRef.current = Date.now();
+      const tick = () => {
+        if (!vadRef.current.analyser) return;
+        vadRef.current.analyser.getByteTimeDomainData(data);
+        // RMS — values are centered at 128; normalise to 0..1
+        let sumSq = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / data.length);
+        vadRef.current.level = rms;
+        // Threshold: ~0.02 RMS is a reasonable mic-noise floor. Speech usually
+        // exceeds 0.05. Keep it generous so we don't miss soft speakers.
+        if (rms > 0.03) {
+          vadRef.current.lastVoiceAt = Date.now();
+          lastVoiceAtRef.current = vadRef.current.lastVoiceAt;
+          if (!vadRef.current.hasSpeech) {
+            vadRef.current.hasSpeech = true;
+            hasSpeechRef.current = true;
+          }
+        }
+        vadRef.current.raf = requestAnimationFrame(tick);
+      };
+      vadRef.current.raf = requestAnimationFrame(tick);
+    } catch (e) {
+      // VAD is best-effort; failures should not block recording.
+    }
+  }, [stopVad]);
+
+  const whisperLang = React.useMemo(() => {
+    const code = (langCode || 'en').toLowerCase();
+    if (code.startsWith('hi')) return 'hi';
+    if (code.startsWith('bn')) return 'bn';
+    if (code.startsWith('mr')) return 'mr';
+    return 'en';
+  }, [langCode]);
+
+  const revokeBlob = React.useCallback(() => {
+    if (blobUrlRef.current) {
+      try { URL.revokeObjectURL(blobUrlRef.current); } catch (e) {}
+      blobUrlRef.current = '';
+    }
+  }, []);
+
+  const start = React.useCallback(async () => {
+    if (typeof window.MediaRecorder === 'undefined') {
+      setStatus('unsupported');
+      setErrorMessage('This browser does not support MediaRecorder.');
+      return;
+    }
+    revokeBlob();
+    setBlobUrl('');
+    setTranscript('');
+    setErrorMessage('');
+    setStatus('requesting');
+    try {
+      const stream = await getSharedMediaStream();
+      // Prefer opus-webm for size + Whisper compatibility; fall back to default.
+      const candidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/mp4',
+      ];
+      let mime = '';
+      for (const c of candidates) {
+        if (window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(c)) { mime = c; break; }
+      }
+      const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      mimeRef.current = recorder.mimeType || mime || 'audio/webm';
+      chunksRef.current = [];
+      startVad(stream);
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstart = () => setStatus('recording');
+      recorder.onerror = (e) => {
+        setStatus('error');
+        setErrorMessage(String((e && e.error && e.error.message) || 'Recorder error'));
+      };
+      recorder.onstop = async () => {
+        stopVad();
+        const blob = new Blob(chunksRef.current, { type: mimeRef.current });
+        chunksRef.current = [];
+        if (blob.size === 0) {
+          setStatus('empty');
+          setErrorMessage('No audio captured — please try again.');
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
+        setBlobUrl(url);
+        setStatus('processing');
+        try {
+          const resp = await fetch(`/api/stt?lang=${encodeURIComponent(whisperLang)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': mimeRef.current },
+            body: blob,
+          });
+          if (!resp.ok) {
+            let detail = '';
+            try { const data = await resp.json(); detail = data.message || data.error || ''; } catch (e) {}
+            setStatus('error');
+            setErrorMessage(`Transcription failed (${resp.status}) ${detail}`.trim());
+            return;
+          }
+          const data = await resp.json();
+          const text = (data && typeof data.text === 'string') ? data.text.trim() : '';
+          setTranscript(text);
+          setStatus(text ? 'done' : 'empty');
+          if (!text) setErrorMessage('We could not understand the audio. Try again?');
+        } catch (err) {
+          setStatus('error');
+          setErrorMessage(String((err && err.message) || err));
+        }
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+    } catch (err) {
+      setStatus('error');
+      setErrorMessage(String((err && err.message) || err));
+    }
+  }, [whisperLang, revokeBlob]);
+
+  const stop = React.useCallback(() => {
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      try { recorder.stop(); } catch (e) {}
+    }
+  }, []);
+
+  const reset = React.useCallback(() => {
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      try { recorder.stop(); } catch (e) {}
+    }
+    recorderRef.current = null;
+    chunksRef.current = [];
+    stopVad();
+    revokeBlob();
+    setBlobUrl('');
+    setTranscript('');
+    setErrorMessage('');
+    setStatus('idle');
+  }, [revokeBlob, stopVad]);
+
+  React.useEffect(() => {
+    return () => {
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== 'inactive') {
+        try { recorder.stop(); } catch (e) {}
+      }
+      stopVad();
+      revokeBlob();
+    };
+  }, [revokeBlob, stopVad]);
+
+  return {
+    status, transcript, blobUrl, errorMessage, start, stop, reset,
+    lastVoiceAtRef, hasSpeechRef,
+  };
 }
 
 // --- speakInstructions helper ---
@@ -971,6 +1250,8 @@ function Btn({ children, onClick, variant = 'primary', disabled, className = '' 
 function A2({ lang }) {
   const [step, setStep] = useState(0);
   const [error, setError] = useState(null);
+  const [holdProgress, setHoldProgress] = useState(0); // 0..1 for Vol+ long-press
+  const holdTimerRef = useRef(null);
   const steps = ["Dial", "Callback", "Wage", "Weekly", "End"];
   const c = COPY.A2[lang];
 
@@ -982,7 +1263,31 @@ function A2({ lang }) {
     return () => stopSpeak();
   }, [step, lang]);
 
-  const reset = () => { setStep(0); setError(null); };
+  // Real phones expose volume keys as physical buttons. The web prototype
+  // simulates them with mouse-down / touch-start handlers so low-literacy
+  // workers can run through the IVR without needing a keypad overlay.
+  const HOLD_MS = 1200;
+  const startHold = () => {
+    const startedAt = Date.now();
+    setHoldProgress(0.01);
+    holdTimerRef.current = setInterval(() => {
+      const pct = Math.min(1, (Date.now() - startedAt) / HOLD_MS);
+      setHoldProgress(pct);
+      if (pct >= 1) {
+        clearInterval(holdTimerRef.current);
+        holdTimerRef.current = null;
+        setHoldProgress(0);
+        setError("Complaint routed. Try B2 prototype.");
+      }
+    }, 50);
+  };
+  const endHold = () => {
+    if (holdTimerRef.current) { clearInterval(holdTimerRef.current); holdTimerRef.current = null; }
+    setHoldProgress(0);
+  };
+  useEffect(() => () => { if (holdTimerRef.current) clearInterval(holdTimerRef.current); }, []);
+
+  const reset = () => { setStep(0); setError(null); endHold(); };
 
   return (
     <div>
@@ -1024,11 +1329,11 @@ function A2({ lang }) {
                 <div className="text-gray-400 text-xs">14 April · Tile Fitting</div>
                 <div className="text-gray-400 text-xs mb-4">Rajesh Kumar (Contractor)</div>
                 <div className="border-t border-gray-700 mb-3"></div>
-                <div className="text-xs text-amber-300 leading-relaxed text-left px-2">
-                  <div>1 → Repeat</div>
-                  <div>2 → Weekly total</div>
-                  <div>9 → Dispute</div>
-                  <div>* → Change language</div>
+                <div className="text-xs text-amber-300 leading-relaxed text-left px-2 space-y-1">
+                  <div>🔊 Vol ↑ → Repeat</div>
+                  <div>🔉 Vol ↓ → Weekly total</div>
+                  <div>🔊⏱ Hold Vol ↑ → Dispute</div>
+                  <div>🤫 Silence → Hang up</div>
                 </div>
               </div>
             )}
@@ -1045,9 +1350,9 @@ function A2({ lang }) {
                   <div>Fri ₹800 · Sat —</div>
                 </div>
                 <div className="border-t border-gray-700 my-3"></div>
-                <div className="text-xs text-amber-300 text-left px-4">
-                  <div>1 → Repeat</div>
-                  <div>9 → Dispute</div>
+                <div className="text-xs text-amber-300 text-left px-4 space-y-1">
+                  <div>🔊 Vol ↑ → Repeat</div>
+                  <div>🤫 Silence → Hang up</div>
                 </div>
               </div>
             )}
@@ -1077,19 +1382,37 @@ function A2({ lang }) {
             <div className="text-xs font-bold text-gray-500">ACTIONS</div>
             {step === 0 && <Btn onClick={() => setStep(1)} variant="primary">📞 Give Missed Call</Btn>}
             {step === 1 && <Btn onClick={() => setStep(2)} variant="primary">🟢 Answer Call</Btn>}
-            {step === 2 && (
-              <>
-                <Btn onClick={() => { speak(c.wage, LANGS[lang].ttsCode); }} variant="ghost" className="block w-full text-left">Press 1 — Repeat</Btn>
-                <Btn onClick={() => setStep(3)} variant="primary" className="block w-full text-left">Press 2 — Weekly Total</Btn>
-                <Btn onClick={() => setError("Complaint routed. Try B2 prototype.")} variant="warning" className="block w-full text-left">Press 9 — Dispute</Btn>
-                <Btn onClick={() => setStep(4)} variant="ghost" className="block w-full text-left">Stay silent 5s</Btn>
-              </>
-            )}
-            {step === 3 && (
-              <>
-                <Btn onClick={() => { setStep(2); }} variant="ghost" className="block w-full text-left">Press 1 — Repeat Wage</Btn>
-                <Btn onClick={() => setStep(4)} variant="primary" className="block w-full text-left">Stay silent 5s</Btn>
-              </>
+            {(step === 2 || step === 3) && (
+              <div className="space-y-2">
+                <div className="text-[11px] text-gray-500 uppercase tracking-wide">Phone Volume Keys</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onMouseDown={startHold}
+                    onMouseUp={() => { if (holdProgress < 1 && holdProgress > 0) { endHold(); /* short tap */ speak(step === 2 ? c.wage : c.weekly, LANGS[lang].ttsCode); } else { endHold(); } }}
+                    onMouseLeave={endHold}
+                    onTouchStart={(e) => { e.preventDefault(); startHold(); }}
+                    onTouchEnd={(e) => { e.preventDefault(); if (holdProgress < 1 && holdProgress > 0) { endHold(); speak(step === 2 ? c.wage : c.weekly, LANGS[lang].ttsCode); } else { endHold(); } }}
+                    className="bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-white rounded-lg p-4 font-bold flex flex-col items-center relative overflow-hidden"
+                  >
+                    <div className="text-2xl">🔊</div>
+                    <div className="text-xs mt-1">Vol ↑</div>
+                    <div className="text-[10px] text-gray-400 mt-1">tap: repeat · hold: dispute</div>
+                    {holdProgress > 0 && (
+                      <div className="absolute bottom-0 left-0 h-1 bg-amber-400" style={{ width: `${holdProgress * 100}%` }} />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setStep(step === 2 ? 3 : 2)}
+                    className="bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-white rounded-lg p-4 font-bold flex flex-col items-center"
+                  >
+                    <div className="text-2xl">🔉</div>
+                    <div className="text-xs mt-1">Vol ↓</div>
+                    <div className="text-[10px] text-gray-400 mt-1">{step === 2 ? 'weekly total' : 'back to wage'}</div>
+                  </button>
+                </div>
+                <Btn onClick={() => setStep(4)} variant="ghost" className="block w-full text-left">🤫 Stay silent 5s — Hang up</Btn>
+                <div className="text-[11px] text-gray-500 italic">Volume keys are present on every phone — feature phones, basic touchscreens, and smartphones alike. No keypad navigation needed.</div>
+              </div>
             )}
             {step === 4 && <Btn onClick={reset} variant="dark">🔄 Redial</Btn>}
           </div>
@@ -1241,24 +1564,23 @@ function B2({ lang }) {
   const [recTime, setRecTime] = useState(0);
   const [discardCountdown, setDiscardCountdown] = useState(0); // Auto-discard in {n}
   const [silenceCountdown, setSilenceCountdown] = useState(10);
-  const voice = useVoiceCapture(LANGS[lang].ttsCode);
+  const voice = useAudioCapture(LANGS[lang].ttsCode);
   const steps = ["Dial", "Callback", "Category", "Speak", "Confirm", "Done"];
   const c = COPY.B2[lang];
 
   useEffect(() => {
+    const pending = [];
     if (step === 2) speakInstructions('B2', 'prompt');
     if (step === 3) speakInstructions('B2', 'speak');
     if (step === 4) {
       speakInstructions('B2', 'summary');
-      // Voice confirmation after each action — recorded in 4 languages
-      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B2_recorded), 8000);
+      pending.push(setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B2_recorded), 8000));
     }
     if (step === 5) {
       speakInstructions('B2', 'confirm');
-      // Voice confirmation after each action — filed in 4 languages
-      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B2_filed), 8000);
+      pending.push(setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B2_filed), 8000));
     }
-    return () => stopSpeak();
+    return () => { pending.forEach(clearTimeout); stopSpeak(); };
   }, [step, lang]);
 
   useEffect(() => {
@@ -1267,40 +1589,53 @@ function B2({ lang }) {
     return () => clearInterval(iv);
   }, [recording]);
 
-  // 10-second silence auto-stop (B2) — single interval, reset via ref on transcript change
-  const b2LastTranscriptRef = useRef('');
-  useEffect(() => { b2LastTranscriptRef.current = voice.transcript; setSilenceCountdown(10); }, [voice.transcript]);
+  // 10-second silence auto-stop (B2) — Web Audio VAD. Countdown only engages
+  // once the user has actually spoken at least once (hasSpeechRef), so slow
+  // starts or quiet rooms do not cut the recording short.
   useEffect(() => {
     if (!recording) { setSilenceCountdown(10); return; }
     setSilenceCountdown(10);
     const iv = setInterval(() => {
-      setSilenceCountdown(t => {
-        if (t <= 1) {
-          clearInterval(iv);
-          setRecording(false);
-          voice.stop();
-          setStep(4);
-          return 10;
-        }
-        return t - 1;
-      });
-    }, 1000);
+      const hadSpeech = voice.hasSpeechRef && voice.hasSpeechRef.current;
+      const lastVoiceAt = voice.lastVoiceAtRef ? voice.lastVoiceAtRef.current : 0;
+      if (!hadSpeech) { setSilenceCountdown(10); return; }
+      const silentMs = Date.now() - lastVoiceAt;
+      const remaining = Math.max(0, 10 - Math.floor(silentMs / 1000));
+      setSilenceCountdown(remaining);
+      if (remaining <= 0) {
+        clearInterval(iv);
+        setRecording(false);
+        voice.stop();
+      }
+    }, 500);
     return () => clearInterval(iv);
-  }, [recording]);
+  }, [recording, voice]);
 
-  // Hard cap: 120s maximum recording regardless of transcript activity.
-  // Protects against noisy-site scenarios where interim STT results keep
-  // resetting the silence timer so the user would otherwise never auto-stop.
+  // Hard cap: 120s maximum recording no matter what.
   useEffect(() => {
     if (!recording) return;
     const t = setTimeout(() => {
       if (!recording) return;
       setRecording(false);
       voice.stop();
-      setStep(4);
     }, 120000);
     return () => clearTimeout(t);
   }, [recording]);
+
+  // Advance to playback summary once Whisper result is in.
+  useEffect(() => {
+    if (recording) return;
+    if ((voice.status === 'done' || voice.status === 'empty' || voice.status === 'error') && step === 3) {
+      setStep(4);
+    }
+  }, [voice.status, recording, step]);
+
+  // Only kill the shell recording state on hard failures (browser lacks STT).
+  // Transient 'error' status (e.g. a single no-speech / network blip) is
+  // handled by the recognition auto-restart loop — don't race it here.
+  useEffect(() => {
+    if (recording && voice.status === 'unsupported') setRecording(false);
+  }, [voice.status, recording]);
 
   // Auto-discard in {discardCountdown}s on confirm step
   useEffect(() => {
@@ -1329,15 +1664,15 @@ function B2({ lang }) {
 
   // Start recording with mic
   const startVoiceRecording = () => {
+    setRecTime(0);
     setRecording(true);
     voice.start();
   };
 
-  // Stop recording
+  // Stop recording — step transition happens when Whisper responds.
   const stopVoiceRecording = () => {
     setRecording(false);
     voice.stop();
-    setStep(4);
   };
 
   return (
@@ -1454,14 +1789,52 @@ function B2({ lang }) {
           {step === 4 && <AudioBubble text={c.summary} lang={LANGS[lang].ttsCode} active={true} />}
           {step === 5 && <AudioBubble text={c.confirm} lang={LANGS[lang].ttsCode} active={true} />}
 
-          {/* B2 transcript review — VoiceStatusCard for capture */}
+          {/* B2 transcript review — live mic status card while recording */}
           {step === 3 && recording && (
-            <VoiceStatusCard
-              status={voice.status}
-              transcript={voice.transcript}
-              confidence={voice.confidence}
-              label="B2 transcript review"
-            />
+            <div className="mt-2 p-3 rounded-xl border-2 border-red-400 bg-red-50">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="mic-pulse inline-block rounded-full w-6 h-6 flex items-center justify-center bg-red-100 text-lg">🔴</span>
+                <span className="text-xs font-bold">B2 RECORDING</span>
+                <span className="text-xs text-gray-600 ml-auto">
+                  {voice.status === 'requesting' ? 'Preparing mic…' : voice.hasSpeechRef && voice.hasSpeechRef.current ? 'Heard you' : 'Waiting for your voice…'}
+                </span>
+              </div>
+              <div className="text-xs text-gray-600">Transcript arrives when you tap Stop (Whisper).</div>
+            </div>
+          )}
+
+          {/* After recording: transcript + self-playback on the Confirm step */}
+          {step === 4 && (
+            <div className="mt-2 p-3 rounded-xl border-2 border-amber-300 bg-amber-50 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">
+                  {voice.status === 'processing' ? '⏳' : voice.status === 'done' ? '✅' : voice.status === 'empty' ? '❓' : voice.status === 'error' ? '⚠️' : '🔊'}
+                </span>
+                <span className="text-xs font-bold">B2 GRIEVANCE DRAFT</span>
+                <span className="text-xs text-gray-700 ml-auto">
+                  {voice.status === 'processing' ? 'Transcribing via Whisper…'
+                    : voice.status === 'done' ? 'Transcription ready'
+                    : voice.status === 'empty' ? 'No speech detected'
+                    : voice.status === 'error' ? 'Transcription failed'
+                    : 'Awaiting review'}
+                </span>
+              </div>
+              {voice.transcript && (
+                <div className="p-2 bg-white rounded-lg border">
+                  <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-0.5">Transcript</div>
+                  <div className="text-sm font-medium text-gray-800 leading-relaxed">"{voice.transcript}"</div>
+                </div>
+              )}
+              {voice.errorMessage && voice.status !== 'done' && (
+                <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">{voice.errorMessage}</div>
+              )}
+              {voice.blobUrl && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Play back your recording</div>
+                  <audio controls src={voice.blobUrl} className="w-full" />
+                </div>
+              )}
+            </div>
           )}
 
           <div className="bg-white p-4 rounded-xl shadow-sm border space-y-2">
@@ -1480,12 +1853,19 @@ function B2({ lang }) {
             )}
             {step === 3 && (
               <>
-                {!recording && <Btn onClick={startVoiceRecording} variant="danger" className="w-full">🎤 Start speaking</Btn>}
+                {!recording && voice.status !== 'processing' && (
+                  <Btn onClick={startVoiceRecording} variant="danger" className="w-full">🎤 Start speaking</Btn>
+                )}
                 {recording && (
                   <>
-                    <div className="text-xs text-gray-500 text-center py-2">Recording... ({recTime}s)</div>
-                    <Btn onClick={stopVoiceRecording} variant="primary" className="w-full">Stop + 10s silence → Continue</Btn>
+                    <div className="text-xs text-gray-500 text-center py-2">
+                      Recording... ({recTime}s){silenceCountdown < 10 ? ` — ${silenceCountdown}s silence to auto-save` : ''}
+                    </div>
+                    <Btn onClick={stopVoiceRecording} variant="primary" className="w-full">Stop + transcribe</Btn>
                   </>
+                )}
+                {voice.status === 'processing' && (
+                  <div className="text-xs text-gray-500 text-center py-2">Transcribing via Whisper…</div>
                 )}
                 {!recording && voice.status === 'unsupported' && (
                   <div className="text-xs text-amber-600 mt-1">Voice not available — button fallback active</div>
@@ -1522,23 +1902,40 @@ function B5({ lang }) {
   const [recording, setRecording] = useState(false);
   const [recTime, setRecTime] = useState(0);
   const [silenceCountdown, setSilenceCountdown] = useState(10);
-  const voice = useVoiceCapture(LANGS[lang].ttsCode);
+  const [toast, setToast] = useState(null); // in-app notification instead of window.alert
+  const voice = useAudioCapture(LANGS[lang].ttsCode);
   const steps = ["7PM Prompt", "To Ear", "Speak", "Saved", "Pattern Flag"];
   const c = COPY.B5[lang];
 
+  // Auto-dismiss toast after 4 seconds so it doesn't linger on the screen
   useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  // Track any pending follow-up audio timers so action buttons can cancel
+  // them (prevents an English fallback prompt from playing over the user's
+  // choice in non-English UI modes).
+  const pendingAudioRef = useRef([]);
+  const cancelPendingAudio = React.useCallback(() => {
+    pendingAudioRef.current.forEach(clearTimeout);
+    pendingAudioRef.current = [];
+    stopSpeak();
+  }, []);
+  useEffect(() => {
+    pendingAudioRef.current.forEach(clearTimeout);
+    pendingAudioRef.current = [];
     if (step === 1) speakInstructions('B5', 'prompt');
     if (step === 3) {
       speakInstructions('B5', 'saved');
-      // Voice confirmation after each action — diary saved in 4 languages
-      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B5_saved), 6000);
+      pendingAudioRef.current.push(setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B5_saved), 6000));
     }
     if (step === 4) {
       speakInstructions('B5', 'pattern');
-      // Voice confirmation after each action — pattern found in 4 languages
-      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B5_pattern), 8000);
+      pendingAudioRef.current.push(setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.B5_pattern), 8000));
     }
-    return () => stopSpeak();
+    return () => { pendingAudioRef.current.forEach(clearTimeout); pendingAudioRef.current = []; stopSpeak(); };
   }, [step, lang]);
 
   useEffect(() => {
@@ -1547,57 +1944,76 @@ function B5({ lang }) {
     return () => clearInterval(iv);
   }, [recording]);
 
-  // 10-second silence auto-save (B5) — single interval, reset via transcript effect
-  useEffect(() => { setSilenceCountdown(10); }, [voice.transcript]);
+  // 10-second silence auto-save (B5) — uses Web Audio VAD so it works even
+  // when server-side STT has not returned yet. Countdown only engages AFTER
+  // the user has actually spoken at least once (hasSpeechRef), so a slow
+  // start or quiet environment does not cut the recording short.
   useEffect(() => {
     if (!recording) { setSilenceCountdown(10); return; }
     setSilenceCountdown(10);
     const iv = setInterval(() => {
-      setSilenceCountdown(t => {
-        if (t <= 1) {
-          clearInterval(iv);
-          setRecording(false);
-          voice.stop();
-          setStep(3);
-          return 10;
-        }
-        return t - 1;
-      });
-    }, 1000);
+      const hadSpeech = voice.hasSpeechRef && voice.hasSpeechRef.current;
+      const lastVoiceAt = voice.lastVoiceAtRef ? voice.lastVoiceAtRef.current : 0;
+      if (!hadSpeech) { setSilenceCountdown(10); return; }
+      const silentMs = Date.now() - lastVoiceAt;
+      const remaining = Math.max(0, 10 - Math.floor(silentMs / 1000));
+      setSilenceCountdown(remaining);
+      if (remaining <= 0) {
+        clearInterval(iv);
+        setRecording(false);
+        voice.stop();
+        // step transition is handled by recorder.onstop -> 'processing' -> 'done'
+      }
+    }, 500);
     return () => clearInterval(iv);
-  }, [recording]);
+  }, [recording, voice]);
 
-  // Hard cap: 120s max recording even if ambient noise keeps STT "speaking".
+  // Hard cap: 120s max recording regardless of transcript activity.
   useEffect(() => {
     if (!recording) return;
     const t = setTimeout(() => {
       if (!recording) return;
       setRecording(false);
       voice.stop();
-      setStep(3);
     }, 120000);
     return () => clearTimeout(t);
   }, [recording]);
+
+  // Only kill the shell on hard failures. Transient errors are auto-restarted.
+  useEffect(() => {
+    if (recording && voice.status === 'unsupported') setRecording(false);
+  }, [voice.status, recording]);
+
+  // When server-side STT returns (done/empty/error), advance to the Saved
+  // step and persist the diary entry. Users always see SOMETHING, even if
+  // transcription was empty.
+  useEffect(() => {
+    if (recording) return;
+    if (voice.status === 'done' || voice.status === 'empty' || voice.status === 'error') {
+      cbcStore.push('cbc.b5.diary', {
+        transcript: voice.transcript || '',
+        lang,
+        wageFlag: /paisa|wage|pay|koolie|mazdoori|मजदूरी|पैसा|pagar|দিয়া/i.test(voice.transcript || ''),
+      }, 30);
+      if (step === 2) setStep(3);
+    }
+  }, [voice.status, voice.transcript, recording, step, lang]);
 
   const reset = () => { setStep(0); setAtEar(false); setRecording(false); setRecTime(0); setSilenceCountdown(10); voice.reset(); stopSpeak(); };
 
   // Start recording with mic
   const startDiaryRecording = () => {
+    setRecTime(0);
     setRecording(true);
     setStep(2);
     voice.start();
   };
 
-  // Stop recording + persist the diary entry so pattern-flag survives reload
+  // Stop recording — actual persistence + step transition happens once the
+  // server STT call resolves (see the status effect above).
   const stopDiaryRecording = () => {
     setRecording(false);
     voice.stop();
-    cbcStore.push('cbc.b5.diary', {
-      transcript: voice.transcript || '',
-      lang,
-      wageFlag: /paisa|wage|pay|koolie|mazdoori|मजदूरी|पैसा|pagar|দিয়া/i.test(voice.transcript || ''),
-    }, 30);
-    setStep(3);
   };
 
   return (
@@ -1630,42 +2046,46 @@ function B5({ lang }) {
           )}
           {step === 2 && (
             <div className="p-5 text-white text-center pt-6">
-              <div className="text-6xl mb-3 text-red-400">🎤</div>
-              <div className="text-red-400 font-bold mb-2">Recording</div>
+              <div className="text-6xl mb-3 text-red-400">{voice.status === 'processing' ? '⏳' : '🎤'}</div>
+              <div className="text-red-400 font-bold mb-2">
+                {voice.status === 'processing' ? 'Transcribing…' : voice.status === 'requesting' ? 'Preparing mic…' : 'Recording'}
+              </div>
               <div className="border-t border-gray-700 mb-3"></div>
               <div className="text-xl font-mono mb-3">
-                {String(Math.floor(recTime/60)).padStart(2,'0')}:{String(recTime%60).padStart(2,'0')} / 03:00
+                {String(Math.floor(recTime/60)).padStart(2,'0')}:{String(recTime%60).padStart(2,'0')} / 02:00
               </div>
-              {/* B5 transcript review — show live transcript from mic */}
-              {voice.transcript ? (
-                <div className="p-2 bg-gray-800 rounded-lg text-left mx-2">
-                  <div className="text-xs text-gray-400">B5 transcript review:</div>
-                  <div className="text-sm text-cyan-300 italic leading-relaxed">"{voice.transcript}"</div>
-                </div>
-              ) : (
-                <div className="text-gray-400 text-xs italic px-3 leading-relaxed">
-                  "Thik tha bhai, lekin aaj bhi woh ₹100 kam diya. Teesra din ho gaya..."
-                </div>
-              )}
-              <div className="text-xs text-amber-300 mt-4">10s silence = auto-save</div>
+              <div className="text-gray-400 text-xs italic px-3 leading-relaxed">
+                Speak freely — Whisper transcribes when you stop.
+              </div>
+              <div className="text-xs text-amber-300 mt-4">
+                {silenceCountdown < 10 ? `${silenceCountdown}s silence → auto-save` : '10s silence = auto-save'}
+              </div>
             </div>
           )}
           {step === 3 && (
-            <div className="p-5 text-white text-center pt-10">
-              <div className="text-7xl mb-3 text-green-400">💾</div>
-              <div className="text-2xl font-bold text-green-400 mb-3">Saved</div>
+            <div className="p-5 text-white text-center pt-8">
+              <div className="text-6xl mb-3 text-green-400">💾</div>
+              <div className="text-2xl font-bold text-green-400 mb-2">Saved</div>
               <div className="border-t border-gray-700 mb-3"></div>
-              <div className="text-gray-400 text-sm">Today's diary entry locked.</div>
-              <div className="text-gray-500 text-xs mt-4">Encrypted. Private.<br/>Only you + trusted<br/>auditor can access.</div>
-              {/* Show what was captured */}
-              {voice.transcript && (
+              <div className="text-gray-400 text-xs">Today's diary entry locked.</div>
+              {/* Final transcript from server-side Whisper */}
+              {voice.transcript ? (
                 <div className="mt-3 p-2 bg-gray-800 rounded-lg text-left mx-2">
-                  <div className="text-xs text-gray-400">Your words:</div>
-                  <div className="text-xs text-cyan-300 italic">"{voice.transcript}"</div>
+                  <div className="text-[10px] uppercase tracking-wide text-gray-400">Your words</div>
+                  <div className="text-xs text-cyan-300 italic leading-relaxed">"{voice.transcript}"</div>
                 </div>
-              )}
-              {/* Voice confirmation after each action */}
-              <div className="mt-2 text-xs text-teal-300 italic">Voice confirmation after each action — spoken in EN, HI, BN, MR</div>
+              ) : voice.status === 'empty' ? (
+                <div className="mt-3 p-2 bg-amber-900/40 border border-amber-700 rounded-lg text-left mx-2">
+                  <div className="text-[10px] uppercase tracking-wide text-amber-300">No words heard</div>
+                  <div className="text-xs text-amber-200 italic">Tap "Re-record" below to try again.</div>
+                </div>
+              ) : voice.status === 'error' ? (
+                <div className="mt-3 p-2 bg-red-900/40 border border-red-700 rounded-lg text-left mx-2">
+                  <div className="text-[10px] uppercase tracking-wide text-red-300">Transcription error</div>
+                  <div className="text-xs text-red-200 italic">{voice.errorMessage || 'Server error'}</div>
+                </div>
+              ) : null}
+              <div className="mt-2 text-[10px] text-teal-300 italic">Encrypted. Private.</div>
             </div>
           )}
           {step === 4 && (
@@ -1695,14 +2115,54 @@ function B5({ lang }) {
           {step === 3 && <AudioBubble text={c.saved} lang={LANGS[lang].ttsCode} active={true} />}
           {step === 4 && <AudioBubble text={c.pattern} lang={LANGS[lang].ttsCode} active={true} />}
 
-          {/* B5 transcript review — VoiceStatusCard for capture */}
+          {/* B5 transcript review — live mic status card while recording */}
           {step === 2 && recording && (
-            <VoiceStatusCard
-              status={voice.status}
-              transcript={voice.transcript}
-              confidence={voice.confidence}
-              label="B5 transcript review"
-            />
+            <div className="mt-2 p-3 rounded-xl border-2 border-red-400 bg-red-50">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="mic-pulse inline-block rounded-full w-6 h-6 flex items-center justify-center bg-red-100 text-lg">🔴</span>
+                <span className="text-xs font-bold">B5 RECORDING</span>
+                <span className="text-xs text-gray-600 ml-auto">
+                  {voice.status === 'requesting' ? 'Preparing mic…' : voice.hasSpeechRef && voice.hasSpeechRef.current ? 'Heard you' : 'Waiting for your voice…'}
+                </span>
+              </div>
+              <div className="text-xs text-gray-600">Transcript arrives when you tap Stop.</div>
+            </div>
+          )}
+
+          {/* After recording: server-side transcript + self-playback */}
+          {step === 3 && (
+            <div className="mt-2 p-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">
+                  {voice.status === 'processing' ? '⏳' : voice.status === 'done' ? '✅' : voice.status === 'empty' ? '❓' : voice.status === 'error' ? '⚠️' : '💾'}
+                </span>
+                <span className="text-xs font-bold">B5 DIARY ENTRY</span>
+                <span className="text-xs text-gray-600 ml-auto">
+                  {voice.status === 'processing' ? 'Transcribing via Whisper…'
+                    : voice.status === 'done' ? 'Transcription ready'
+                    : voice.status === 'empty' ? 'No speech detected'
+                    : voice.status === 'error' ? 'Transcription failed'
+                    : 'Saved'}
+                </span>
+              </div>
+              {voice.transcript && (
+                <div className="p-2 bg-white rounded-lg border">
+                  <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-0.5">Transcript</div>
+                  <div className="text-sm font-medium text-gray-800 leading-relaxed">"{voice.transcript}"</div>
+                </div>
+              )}
+              {voice.errorMessage && voice.status !== 'done' && (
+                <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">{voice.errorMessage}</div>
+              )}
+              {voice.blobUrl ? (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Play back your recording</div>
+                  <audio controls src={voice.blobUrl} className="w-full" />
+                </div>
+              ) : (
+                <div className="text-xs text-gray-500 italic">Recording playback unavailable.</div>
+              )}
+            </div>
           )}
 
           <div className="bg-white p-4 rounded-xl shadow-sm border space-y-2">
@@ -1724,24 +2184,46 @@ function B5({ lang }) {
             )}
             {step === 2 && (
               <>
-                <div className="text-xs text-gray-500 text-center py-2">Recording ({recTime}s)</div>
-                <Btn onClick={stopDiaryRecording} variant="primary" className="w-full">Stop + 10s silence → save</Btn>
+                <div className="text-xs text-gray-500 text-center py-2">
+                  Recording ({recTime}s){voice.status === 'processing' && ' — transcribing…'}
+                </div>
+                <Btn onClick={stopDiaryRecording} variant="primary" className="w-full" disabled={!recording}>
+                  Stop + save
+                </Btn>
               </>
             )}
             {step === 3 && (
               <>
-                <Btn onClick={() => setStep(4)} variant="warning" className="w-full">🗓 Jump to Day 3 (pattern)</Btn>
+                {(voice.status === 'empty' || voice.status === 'error') && (
+                  <Btn onClick={() => { voice.reset(); startDiaryRecording(); }} variant="danger" className="w-full">🎤 Re-record</Btn>
+                )}
+                <Btn onClick={() => setStep(4)} variant="warning" className="w-full" disabled={voice.status === 'processing'}>🗓 Jump to Day 3 (pattern)</Btn>
                 <Btn onClick={reset} variant="ghost" className="w-full">End demo</Btn>
               </>
             )}
             {step === 4 && (
               <>
-                <Btn onClick={() => alert("Routes to B2 grievance flow with category pre-filled")} variant="primary" className="w-full">1 thap — Yes, file it</Btn>
-                <Btn onClick={reset} variant="ghost" className="w-full">2 thap — Not now</Btn>
-                <Btn onClick={reset} variant="danger" className="w-full">3 thap — Stop asking</Btn>
+                <Btn onClick={() => { cancelPendingAudio(); setToast({ tone: 'success', text: 'Routed to B2 grievance flow — category pre-filled as "wage".' }); }} variant="primary" className="w-full">1 thap — Yes, file it</Btn>
+                <Btn onClick={() => { cancelPendingAudio(); reset(); }} variant="ghost" className="w-full">2 thap — Not now</Btn>
+                <Btn onClick={() => { cancelPendingAudio(); reset(); }} variant="danger" className="w-full">3 thap — Stop asking</Btn>
               </>
             )}
           </div>
+
+          {toast && (
+            <div
+              role="status"
+              className={`rounded-xl border p-3 text-xs flex items-start gap-2 ${
+                toast.tone === 'success'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                  : 'bg-amber-50 border-amber-300 text-amber-900'
+              }`}
+            >
+              <span className="text-base leading-none">{toast.tone === 'success' ? '✓' : 'ℹ'}</span>
+              <div className="flex-1">{toast.text}</div>
+              <button onClick={() => setToast(null)} className="underline opacity-70 hover:opacity-100">dismiss</button>
+            </div>
+          )}
 
           <HapticBubble text={step === 0 ? "Diary pattern: 4 slow pulses" : step === 3 ? "Heartbeat ♩♩ ♩ = saved" : step === 4 ? "Gentle double pulse" : "Silent"} active={step === 0 || step === 3 || step === 4} />
 
@@ -1766,29 +2248,37 @@ function C2({ lang }) {
   const [spokenAmount, setSpokenAmount] = useState(null);        // parsed from transcript
   const [confirmCountdown, setConfirmCountdown] = useState(0);   // Auto-close in {n}
   const [cancelled, setCancelled] = useState(false);
+  const [toast, setToast] = useState(null); // in-app notification instead of window.alert
   const voice = useVoiceCapture(LANGS[lang].ttsCode);
   const steps = ["Call", "Menu", "Who", "Amount", "Confirm", "PIN", "Done"];
   const c = COPY.C2[lang];
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   // Common fallback amounts when speech decoding fails
   const FALLBACK_AMOUNTS = [200, 500, 1000, 1500, 2000];
 
   useEffect(() => {
+    const pending = [];
     if (step === 1) speak(c.menu, LANGS[lang].ttsCode);
     if (step === 2) speak(c.who, LANGS[lang].ttsCode);
     if (step === 3) speak(c.amount, LANGS[lang].ttsCode);
     if (step === 4) {
       const dyn = buildC2SpeechCopy(amount || '800');
       speak(dyn.confirm[lang] || c.confirm.replace(/AMOUNT/g, String(amount || '800')), LANGS[lang].ttsCode);
-      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.C2_amount_set), 3000);
+      pending.push(setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.C2_amount_set), 3000));
     }
     if (step === 5) speak(c.pin, LANGS[lang].ttsCode);
     if (step === 6) {
       const dyn = buildC2SpeechCopy(amount || '800');
       speak(dyn.done[lang] || c.done.replace(/AMOUNT/g, String(amount || '800')), LANGS[lang].ttsCode);
-      setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.C2_sent), 4000);
+      pending.push(setTimeout(() => buildRepeatedSpeech(STEP_CONFIRMATIONS.C2_sent), 4000));
     }
-    return () => stopSpeak();
+    return () => { pending.forEach(clearTimeout); stopSpeak(); };
   }, [step, lang]);
 
   // Undo window countdown on done step
@@ -2015,13 +2505,13 @@ function C2({ lang }) {
             {step === 1 && (
               <>
                 <Btn onClick={() => setStep(2)} variant="primary" className="w-full">Press 1 — Send money</Btn>
-                <Btn onClick={() => alert("Balance: ₹2,300")} variant="ghost" className="w-full">Press 2 — Balance</Btn>
+                <Btn onClick={() => { stopSpeak(); setToast({ tone: 'info', text: 'Balance: ₹2,300 (demo data).' }); }} variant="ghost" className="w-full">Press 2 — Balance</Btn>
               </>
             )}
             {step === 2 && (
               <>
                 <Btn onClick={() => setStep(3)} variant="primary" className="w-full">Press 1 — Ghar (Sunita Devi)</Btn>
-                <Btn onClick={() => alert("Other number flow")} variant="ghost" className="w-full">Press 2 — Other</Btn>
+                <Btn onClick={() => { stopSpeak(); setToast({ tone: 'info', text: 'Other-number flow is out of scope for this prototype.' }); }} variant="ghost" className="w-full">Press 2 — Other</Btn>
               </>
             )}
             {step === 3 && !voiceAmountMode && (
@@ -2088,13 +2578,28 @@ function C2({ lang }) {
             )}
             {step === 6 && (
               <>
-                <Btn onClick={() => alert(`Reversed! ₹${amount} back in your account.`)} variant="danger" className="w-full" disabled={undoWindow === 0}>
+                <Btn onClick={() => { stopSpeak(); setToast({ tone: 'success', text: `Reversed! ₹${amount || '800'} back in your account.` }); }} variant="danger" className="w-full" disabled={undoWindow === 0}>
                   🔁 3 taps — REVERSE ({undoWindow}s left)
                 </Btn>
                 <Btn onClick={reset} variant="dark" className="w-full">Done</Btn>
               </>
             )}
           </div>
+
+          {toast && (
+            <div
+              role="status"
+              className={`rounded-xl border p-3 text-xs flex items-start gap-2 ${
+                toast.tone === 'success'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                  : 'bg-amber-50 border-amber-300 text-amber-900'
+              }`}
+            >
+              <span className="text-base leading-none">{toast.tone === 'success' ? '✓' : 'ℹ'}</span>
+              <div className="flex-1">{toast.text}</div>
+              <button onClick={() => setToast(null)} className="underline opacity-70 hover:opacity-100">dismiss</button>
+            </div>
+          )}
 
           <HapticBubble text={step === 6 ? "Heartbeat ♩♩ ♩ = success" : step >= 1 && step <= 5 ? "Single buzz on each key press" : "Silent"} active={step === 6} />
 
